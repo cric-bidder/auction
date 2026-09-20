@@ -7,6 +7,7 @@ import { Link, Navigate, useNavigate, useSearchParams, useLocation } from 'react
 import { normalizeMobile, formatMobile } from '../utils/phoneUtils';
 import { tshirtSizes } from '../data/data';
 import { generatePlayersListPDF } from '../services/pdfGenerator';
+import ImportPlayersModal from '../components/ImportPlayersModal';
 
 const getPlayerInitials = (p) => {
   if (!p) return '';
@@ -53,6 +54,7 @@ const AdminPlayersPage = () => {
 
   // Form State
   const [showForm, setShowForm] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [formError, setFormError] = useState('');
 
@@ -734,6 +736,17 @@ const AdminPlayersPage = () => {
             {!showForm && <button onClick={handleAddNewPlayer} className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: 'var(--accent-gold)' }}>+ Add Player</button>}
             {!showForm && (
               <button
+                onClick={() => setShowImportModal(true)}
+                disabled={actionLoading || !activeAuction}
+                className="btn btn-outline"
+                style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', color: 'var(--accent-gold)', borderColor: 'var(--accent-gold)' }}
+                title="Import players in bulk from Excel or CSV spreadsheet"
+              >
+                📥 Import Excel
+              </button>
+            )}
+            {!showForm && (
+              <button
                 onClick={backfillPlayerNumbers}
                 disabled={actionLoading}
                 className="btn btn-outline"
@@ -1169,6 +1182,18 @@ const AdminPlayersPage = () => {
               </div>
             )}
           </div>
+        )}
+        {/* Excel Import Modal */}
+        {activeAuction && (
+          <ImportPlayersModal
+            auction={activeAuction}
+            existingPlayers={playersList}
+            isOpen={showImportModal}
+            onClose={() => setShowImportModal(false)}
+            onSuccess={async () => {
+              await fetchData();
+            }}
+          />
         )}
       </main>
     </div>
