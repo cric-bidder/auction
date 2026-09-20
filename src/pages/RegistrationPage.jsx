@@ -5,7 +5,7 @@ import { uploadToCloudinary } from '../services/cloudinary';
 import PageHeader from '../components/PageHeader';
 import { Loader } from '../components/Loader';
 import { normalizeMobile } from '../utils/phoneUtils';
-import { tshirtSizes, branches } from '../data/data';
+import { tshirtSizes } from '../data/data';
 
 const RegistrationPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,7 +24,7 @@ const RegistrationPage = () => {
   const [linkExpired, setLinkExpired] = useState(false);
 
   const [formData, setFormData] = useState({
-    branch: '', first_name: '', last_name: '', mobile: '', email: '',
+    first_name: '', last_name: '', mobile: '', email: '',
     dob: '', area: '', gender: '',
     player_role: '', batting_style: '', bowling_style: '',
     tshirt_name: '', tshirt_size: '', tshirt_number: '',
@@ -231,10 +231,6 @@ const RegistrationPage = () => {
         }
       }
 
-      if (!formData.branch) {
-        throw new Error("Branch selection is required.");
-      }
-
       if (!formData.gender) {
         throw new Error("Gender selection is required.");
       }
@@ -251,7 +247,7 @@ const RegistrationPage = () => {
       if (formData.aadhar) aadhar_card_url = await uploadToCloudinary(formData.aadhar);
 
       const playerPayload = {
-        branch: formData.branch,
+        branch: null,
         first_name: formData.first_name,
         last_name: formData.last_name,
         mobile: finalMobile,
@@ -601,15 +597,6 @@ const RegistrationPage = () => {
           <form onSubmit={handleSubmit}>
             <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '1.5rem', color: 'var(--accent-gold)' }}>Personal Details</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem 1.5rem' }}>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Branch *</label>
-                <select required name="branch" className="form-select" value={formData.branch} onChange={handleChange}>
-                  <option value="">Select Branch</option>
-                  {branches.map(b => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              </div>
               <div className="form-group">
                 <label className="form-label">First Name *</label>
                 <input required type="text" name="first_name" className="form-input" value={formData.first_name} onChange={handleChange} />
@@ -734,15 +721,15 @@ const RegistrationPage = () => {
                 <div style={{ textAlign: 'center', padding: '2rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                   {activeAuction.per_player_fees && (
                     <>
-                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent-green)', marginBottom: '1.5rem' }}>
+                      {/* <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent-green)', marginBottom: '1.5rem' }}>
                         Registration Fee for Captain: ₹700
-                      </div>
+                      </div> */}
                       <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent-green)', marginBottom: '1.5rem' }}>
                         Registration Fee for Male: ₹{activeAuction.per_player_fees}
                       </div>
-                      <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent-green)', marginBottom: '1.5rem' }}>
+                      {/* <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent-green)', marginBottom: '1.5rem' }}>
                         Registration Fee for Female: ₹300
-                      </div>
+                      </div> */}
                       {/* <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent-green)', marginBottom: '1.5rem' }}>
                         Registration Fee for Icon Player : ₹{500}
                       </div> */}

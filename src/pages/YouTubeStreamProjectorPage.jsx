@@ -427,7 +427,7 @@ const YouTubeStreamProjectorPage = () => {
                                         {activePlayer.players.first_name} {activePlayer.players.last_name}
                                     </h1>
                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0.3rem 0 0.8rem' }}>
-                                        Branch: <strong style={{ color: 'var(--accent-gold)' }}>{activePlayer.players.branch || '-'}</strong> | Base Price: ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}
+                                        Base Price: <strong style={{ color: 'var(--accent-gold)' }}>₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}</strong>
                                         {activePlayer.players.gender && (
                                             <span style={{ marginLeft: '0.8rem', color: activePlayer.players.gender.toLowerCase() === 'female' ? '#f472b6' : '#60a5fa', fontWeight: 'bold' }}>
                                                 ({activePlayer.players.gender})

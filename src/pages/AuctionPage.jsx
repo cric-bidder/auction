@@ -4,6 +4,7 @@ import { uploadToCloudinary, deleteFromCloudinary } from '../services/cloudinary
 import PageHeader from '../components/PageHeader';
 import { Link } from 'react-router-dom';
 import { Loader } from '../components/Loader';
+import CleanAuctionModal from '../components/CleanAuctionModal';
 
 const getAuctionInitials = (name) => {
   if (!name) return '';
@@ -22,6 +23,8 @@ const AuctionPage = () => {
 
   const [auctionsList, setAuctionsList] = useState([]);
   const [editingAuction, setEditingAuction] = useState(null);
+  const [auctionToClean, setAuctionToClean] = useState(null);
+  const [showCleanModal, setShowCleanModal] = useState(false);
 
   const fileInputRef = useRef(null);
   const qrInputRef = useRef(null);
@@ -444,9 +447,28 @@ const AuctionPage = () => {
                             {a.qr_code_url ? <span style={{ color: 'var(--accent-green)', fontSize: '1.2rem' }}>✓</span> : <span style={{ color: 'var(--text-muted)' }}>-</span>}
                           </td>
                           <td style={{ padding: '1rem', textAlign: 'center' }}>
-                            <button onClick={() => handleEditClick(a)} className="btn btn-outline" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>
-                              Edit
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center' }}>
+                              <button onClick={() => handleEditClick(a)} className="btn btn-outline" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setAuctionToClean(a);
+                                  setShowCleanModal(true);
+                                }}
+                                className="btn"
+                                style={{
+                                  padding: '0.4rem 0.8rem',
+                                  fontSize: '0.8rem',
+                                  background: 'rgba(239, 68, 68, 0.15)',
+                                  border: '1px solid #ef4444',
+                                  color: '#ef4444'
+                                }}
+                                title="Clean up all tournament data and Cloudinary images"
+                              >
+                                🗑️ Clean & Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -457,6 +479,22 @@ const AuctionPage = () => {
             </div>
           )}
         </div>
+
+        {/* Clean Auction Modal */}
+        {auctionToClean && (
+          <CleanAuctionModal
+            auction={auctionToClean}
+            isOpen={showCleanModal}
+            onClose={() => {
+              setShowCleanModal(false);
+              setAuctionToClean(null);
+            }}
+            onSuccess={(result) => {
+              setSuccessMsg(`Tournament "${auctionToClean.auction_name}" and ${result.deletedMediaCount || 0} Cloudinary assets were completely erased!`);
+              fetchAuctions();
+            }}
+          />
+        )}
       </main>
     </div>
   );

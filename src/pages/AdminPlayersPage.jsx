@@ -5,7 +5,7 @@ import PageHeader from '../components/PageHeader';
 import { Loader } from '../components/Loader';
 import { Link, Navigate, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { normalizeMobile, formatMobile } from '../utils/phoneUtils';
-import { tshirtSizes, branches } from '../data/data';
+import { tshirtSizes } from '../data/data';
 import { generatePlayersListPDF } from '../services/pdfGenerator';
 
 const getPlayerInitials = (p) => {
@@ -57,7 +57,6 @@ const AdminPlayersPage = () => {
   const [formError, setFormError] = useState('');
 
   const initialFormState = {
-    branch: '',
     first_name: '', last_name: '', mobile: '', email: '',
     dob: '', area: '', gender: '',
     player_role: '', batting_style: '', bowling_style: '',
@@ -328,7 +327,6 @@ const AdminPlayersPage = () => {
   const handleEditClick = (p) => {
     setEditingPlayer(p);
     setFormData({
-      branch: p.branch || '',
       first_name: p.first_name || '', last_name: p.last_name || '',
       mobile: p.mobile || '', email: p.email || '',
       dob: p.dob || '', area: p.area || '', gender: p.gender || '',
@@ -419,7 +417,7 @@ const AdminPlayersPage = () => {
       }
 
       const playerPayload = {
-        branch: formData.branch || null,
+        branch: null,
         first_name: formData.first_name, last_name: formData.last_name,
         mobile: formData.mobile, email: formData.email,
         dob: formData.dob || null, area: formData.area || null, gender: formData.gender || null,
@@ -767,15 +765,6 @@ const AdminPlayersPage = () => {
             <form onSubmit={handleFormSubmit}>
               <h3 style={{ color: 'var(--text-main)', marginBottom: '1rem', fontSize: '1.1rem' }}>Personal Details</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem 1.5rem', marginBottom: '1.5rem' }}>
-                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                  <label className="form-label">Branch *</label>
-                  <select required name="branch" value={formData.branch} onChange={handleFormChange} className="form-select">
-                    <option value="">Select Branch</option>
-                    {branches.map(b => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
-                </div>
                 <div className="form-group">
                   <label className="form-label">First Name *</label>
                   <input required type="text" name="first_name" value={formData.first_name} onChange={handleFormChange} className="form-input" />
@@ -1026,7 +1015,6 @@ const AdminPlayersPage = () => {
                       <th style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', width: '50px' }}>Player No.</th>
                       <th style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)' }}>Photo</th>
                       <th style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)' }}>Name</th>
-                      <th style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)' }}>Branch</th>
                       <th style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)' }}>Reg Source</th>
                       <th style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)' }}>Role</th>
                       <th style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)' }}>Mobile</th>
@@ -1086,7 +1074,6 @@ const AdminPlayersPage = () => {
                             )}
                           </div>
                         </td>
-                        <td style={{ padding: '1rem' }}><span style={{ color: 'var(--accent-gold)', fontWeight: 'bold' }}>{p.branch || '-'}</span></td>
                         <td style={{ padding: '1rem' }}>
                           {p.is_via_link ? (
                             <span style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', display: 'inline-block' }}>

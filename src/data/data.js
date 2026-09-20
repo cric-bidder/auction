@@ -15,11 +15,3 @@ export const tshirtSizes = [
   "48 (4XL)",
   "50 (5XL)"
 ];
-
-export const branches = [
-  "Bhatar Road",
-  "Nanpura",
-  "Citylight",
-  "Vesu"
-];
-
