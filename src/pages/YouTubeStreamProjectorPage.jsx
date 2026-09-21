@@ -426,7 +426,7 @@ const YouTubeStreamProjectorPage = () => {
                                         {activePlayer.player_number && <span style={{ color: 'var(--accent-gold)', marginRight: '0.8rem' }}>#{activePlayer.player_number}</span>}
                                         {activePlayer.players.first_name} {activePlayer.players.last_name}
                                     </h1>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0.3rem 0 0.8rem' }}>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0.3rem 0 0.4rem' }}>
                                         Base Price: <strong style={{ color: 'var(--accent-gold)' }}>₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}</strong>
                                         {activePlayer.players.gender && (
                                             <span style={{ marginLeft: '0.8rem', color: activePlayer.players.gender.toLowerCase() === 'female' ? '#f472b6' : '#60a5fa', fontWeight: 'bold' }}>
@@ -434,6 +434,11 @@ const YouTubeStreamProjectorPage = () => {
                                             </span>
                                         )}
                                     </p>
+                                    {activePlayer.players.flat_no && (
+                                        <div style={{ fontSize: '0.88rem', color: 'var(--accent-gold)', fontWeight: 'bold', margin: '0 0 0.6rem 0' }}>
+                                            🏢 Flat - Block number: {activePlayer.players.flat_no}
+                                        </div>
+                                    )}
 
                                     {/* Highest Bid Banner Box */}
                                     <div style={{

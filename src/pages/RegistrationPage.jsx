@@ -25,7 +25,7 @@ const RegistrationPage = () => {
 
   const [formData, setFormData] = useState({
     first_name: '', last_name: '', mobile: '', email: '',
-    dob: '', area: '', gender: '',
+    dob: '', area: '', flat_no: '', gender: '',
     player_role: '', batting_style: '', bowling_style: '',
     tshirt_name: '', tshirt_size: '', tshirt_number: '',
     photo: null, aadhar: null
@@ -247,13 +247,13 @@ const RegistrationPage = () => {
       if (formData.aadhar) aadhar_card_url = await uploadToCloudinary(formData.aadhar);
 
       const playerPayload = {
-        branch: null,
         first_name: formData.first_name,
         last_name: formData.last_name,
         mobile: finalMobile,
         email: formData.email,
         dob: formData.dob || null,
         area: formData.area || null,
+        flat_no: formData.flat_no || null,
         gender: formData.gender || null,
         photo_url,
         aadhar_card_url,
@@ -638,6 +638,10 @@ const RegistrationPage = () => {
 
             <h3 style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', margin: '2rem 0 1.5rem', color: 'var(--accent-gold)' }}>Address</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem 1.5rem' }}>
+              <div className="form-group">
+                <label className="form-label">Flat - Block number</label>
+                <input type="text" name="flat_no" className="form-input" placeholder="e.g. A-102" value={formData.flat_no} onChange={handleChange} />
+              </div>
               <div className="form-group">
                 <label className="form-label">Area / Village / City</label>
                 <input type="text" name="area" className="form-input" value={formData.area} onChange={handleChange} />

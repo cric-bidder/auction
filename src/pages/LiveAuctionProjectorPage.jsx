@@ -1210,6 +1210,12 @@ const LiveAuctionProjectorPage = () => {
                                     <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Bowling Style:</span>
                                     <span style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>{activePlayer?.players?.bowling_style || 'N/A'}</span>
                                 </div>
+                                {activePlayer?.players?.flat_no && (
+                                    <div style={{ opacity: 0.95, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.9em' }}>Flat - Block number:</span>{' '}
+                                        <span style={{ color: 'var(--accent-gold)', fontWeight: 700 }}>{activePlayer.players.flat_no}</span>
+                                    </div>
+                                )}
                                 <div style={{ opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Base Price:</span> <span style={{ color: '#fff', fontWeight: 600 }}>₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}</span>
                                 </div>
@@ -1661,6 +1667,13 @@ const LiveAuctionProjectorPage = () => {
                                         <span style={{ opacity: 0.3 }}>|</span>
                                         <span style={{ opacity: 0.5 }}>Bowling:</span>
                                         <span>{lastSoldPlayer.players.bowling_style}</span>
+                                        {lastSoldPlayer.players?.flat_no && (
+                                            <>
+                                                <span style={{ opacity: 0.3 }}>|</span>
+                                                <span style={{ opacity: 0.5 }}>Flat - Block:</span>
+                                                <span style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>{lastSoldPlayer.players.flat_no}</span>
+                                            </>
+                                        )}
                                     </div>
                                     <div style={{
                                         display: 'flex', alignItems: 'center',

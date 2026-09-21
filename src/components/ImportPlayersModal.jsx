@@ -493,6 +493,7 @@ const ImportPlayersModal = ({ auction, existingPlayers = [], isOpen, onClose, on
                     <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.15)', textAlign: 'left' }}>
                       <th style={{ padding: '0.75rem 0.6rem', width: '45px' }}>#</th>
                       <th style={{ padding: '0.75rem 0.6rem' }}>Player Name</th>
+                      <th style={{ padding: '0.75rem 0.6rem' }}>Flat No</th>
                       <th style={{ padding: '0.75rem 0.6rem' }}>Mobile</th>
                       <th style={{ padding: '0.75rem 0.6rem' }}>Gender</th>
                       <th style={{ padding: '0.75rem 0.6rem' }}>Role</th>
@@ -505,7 +506,7 @@ const ImportPlayersModal = ({ auction, existingPlayers = [], isOpen, onClose, on
                   <tbody>
                     {displayedRows.length === 0 ? (
                       <tr>
-                        <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                        <td colSpan="10" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                           No records in this category.
                         </td>
                       </tr>
@@ -524,6 +525,9 @@ const ImportPlayersModal = ({ auction, existingPlayers = [], isOpen, onClose, on
                             {row.data.is_captain && <span style={{ marginLeft: '4px', fontSize: '0.7rem', color: 'var(--accent-gold)' }}>[C]</span>}
                             {row.data.is_icon && <span style={{ marginLeft: '4px', fontSize: '0.7rem', color: '#60a5fa' }}>[Icon]</span>}
                             {row.data.is_owner && <span style={{ marginLeft: '4px', fontSize: '0.7rem', color: '#a855f7' }}>[Owner]</span>}
+                          </td>
+                          <td style={{ padding: '0.6rem', color: row.data.flat_no ? 'var(--accent-gold)' : 'var(--text-muted)', fontWeight: row.data.flat_no ? 600 : 400 }}>
+                            {row.data.flat_no || '-'}
                           </td>
                           <td style={{ padding: '0.6rem', color: row.data.mobile ? '#cbd5e1' : '#ef4444' }}>
                             {row.data.mobile || '(Missing)'}

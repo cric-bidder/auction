@@ -597,6 +597,7 @@ const LiveAuctionPage = () => {
         const matchesStatus = !['sold', 'unsold', 'active'].includes(p.auction_status) && !p.is_icon && !p.is_captain;
         const lowSearch = searchTerm.toLowerCase();
         const matchesSearch = (p.players.first_name + ' ' + p.players.last_name).toLowerCase().includes(lowSearch) || 
+                              (p.players.flat_no && p.players.flat_no.toLowerCase().includes(lowSearch)) ||
                               (p.player_number && p.player_number.toString().includes(searchTerm));
         const matchesRole = roleFilter === 'ALL' || p.players.player_role === roleFilter;
         const matchesGender = !activeAuction?.is_separate_gender || (p.players?.gender || '').toLowerCase() === liveGenderSession.toLowerCase();
@@ -620,7 +621,8 @@ const LiveAuctionPage = () => {
         const fullName = `${p.players?.first_name || ''} ${p.players?.last_name || ''}`.toLowerCase();
         const numStr = p.player_number != null ? p.player_number.toString() : '';
         const teamNameStr = (team?.team_name || '').toLowerCase();
-        const matchesSearch = !lowSearch || fullName.includes(lowSearch) || numStr.includes(lowSearch) || teamNameStr.includes(lowSearch);
+        const flatStr = (p.players?.flat_no || '').toLowerCase();
+        const matchesSearch = !lowSearch || fullName.includes(lowSearch) || numStr.includes(lowSearch) || teamNameStr.includes(lowSearch) || flatStr.includes(lowSearch);
 
         return matchesGender && matchesSearch;
     });
@@ -643,7 +645,8 @@ const LiveAuctionPage = () => {
         const numStr = p.player_number != null ? p.player_number.toString() : '';
         const roleStr = (p.players?.player_role || '').toLowerCase();
         const stateStr = (p.players?.state || '').toLowerCase();
-        const matchesSearch = !lowSearch || fullName.includes(lowSearch) || numStr.includes(lowSearch) || roleStr.includes(lowSearch) || stateStr.includes(lowSearch);
+        const flatStr = (p.players?.flat_no || '').toLowerCase();
+        const matchesSearch = !lowSearch || fullName.includes(lowSearch) || numStr.includes(lowSearch) || roleStr.includes(lowSearch) || stateStr.includes(lowSearch) || flatStr.includes(lowSearch);
 
         return matchesGender && matchesSearch;
     });
@@ -806,7 +809,7 @@ const LiveAuctionPage = () => {
                                                 {activePlayer.player_number && <span style={{ color: 'var(--accent-gold)', marginRight: '1rem' }}>#{activePlayer.player_number}</span>}
                                                 {activePlayer.players.first_name} {activePlayer.players.last_name}
                                             </h1>
-                                            <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', margin: '0.4rem 0' }}>
                                               Base Price: ₹{(activeAuction.base_price || 0).toLocaleString('en-IN')}
                                               {activePlayer.players.gender && (
                                                 <span style={{ marginLeft: '1rem', color: activePlayer.players.gender.toLowerCase() === 'female' ? '#f472b6' : '#60a5fa', fontWeight: 'bold' }}>
@@ -814,6 +817,11 @@ const LiveAuctionPage = () => {
                                                 </span>
                                               )}
                                             </p>
+                                            {activePlayer.players.flat_no && (
+                                              <div style={{ marginTop: '0.4rem', fontSize: '1.1rem', color: 'var(--accent-gold)', fontWeight: 'bold' }}>
+                                                🏢 Flat - Block number: {activePlayer.players.flat_no}
+                                              </div>
+                                            )}
 
                                             <div style={{ marginTop: '2rem', background: 'rgba(255,215,0,0.1)', padding: '1.5rem', borderRadius: '10px', border: '1px solid var(--accent-gold)', overflow: 'hidden' }}>
                                                 <div style={{ fontSize: '0.9rem', color: 'var(--accent-gold)', textTransform: 'uppercase', letterSpacing: '2px' }}>Current Highest Bid</div>
@@ -1142,7 +1150,10 @@ const LiveAuctionPage = () => {
                                                         {p.player_number && <span style={{ color: 'var(--accent-gold)', marginRight: '0.5rem' }}>#{p.player_number}</span>}
                                                         {p.players.first_name} {p.players.last_name}
                                                     </div>
-                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{p.players.player_role}</div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                                      {p.players.player_role}
+                                                      {p.players.flat_no && <span style={{ color: 'var(--accent-gold)', marginLeft: '0.4rem' }}>• Flat: {p.players.flat_no}</span>}
+                                                    </div>
                                                 </div>
                                             </Link>
                                             <button

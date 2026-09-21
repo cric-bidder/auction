@@ -53,6 +53,12 @@ const PlayerCard = ({ player, viewMode = 'grid' }) => {
                 <div style={{ fontSize: '1.05rem', fontWeight: 'bold', color: 'var(--accent-green)' }}>₹{player.sold_price?.toLocaleString()}</div>
               </div>
             )}
+            {player.flat_no && (
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Flat / Block</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--accent-gold)' }}>{player.flat_no}</div>
+              </div>
+            )}
             <div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Batting</div>
               <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{player.batting_style || 'N/A'}</div>
@@ -122,6 +128,12 @@ const PlayerCard = ({ player, viewMode = 'grid' }) => {
       {/* Details Section */}
       <div style={{ padding: '1rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {player.flat_no && (
+            <div className="flex justify-between" style={{ fontSize: '0.9rem' }}>
+              <span className="text-muted">Flat - Block</span>
+              <span style={{ fontWeight: 600, color: 'var(--accent-gold)' }}>{player.flat_no}</span>
+            </div>
+          )}
           <div className="flex justify-between" style={{ fontSize: '0.9rem' }}>
             <span className="text-muted">Batting</span>
             <span style={{ fontWeight: 500 }}>{player.batting_style || 'N/A'}</span>
