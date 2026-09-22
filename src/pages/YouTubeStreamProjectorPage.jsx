@@ -434,11 +434,6 @@ const YouTubeStreamProjectorPage = () => {
                                             </span>
                                         )}
                                     </p>
-                                    {activePlayer.players.flat_no && (
-                                        <div style={{ fontSize: '0.88rem', color: 'var(--accent-gold)', fontWeight: 'bold', margin: '0 0 0.6rem 0' }}>
-                                            🏢 Flat - Block number: {activePlayer.players.flat_no}
-                                        </div>
-                                    )}
 
                                     {/* Highest Bid Banner Box */}
                                     <div style={{
@@ -621,10 +616,8 @@ const YouTubeStreamProjectorPage = () => {
                                 const teamSquad = allAuctionPlayers.filter(p => p.team_id === team.id && p.approval_status === 'approved');
                                 const squadCount = teamSquad.length;
                                 const spent = teamSquad.reduce((acc, p) => acc + (p.sold_price || 0), 0);
-                                
                                 const isCurrentBidder = activePlayer && team.id === activePlayer.current_bid_team_id;
-                                const activeBidCost = isCurrentBidder ? (activePlayer?.current_bid_price || 0) : 0;
-                                const remainingPurse = maxBudget - spent - activeBidCost;
+                                const remainingPurse = maxBudget - spent;
                                 const pursePercent = maxBudget > 0 ? Math.max(0, Math.min(100, (remainingPurse / maxBudget) * 100)) : 100;
 
                                 return (
@@ -731,8 +724,8 @@ const YouTubeStreamProjectorPage = () => {
                                     {lastSoldPlayer.players?.first_name} {lastSoldPlayer.players?.last_name}
                                 </h2>
                                 <p style={{ color: 'var(--text-muted)', margin: '0.3rem 0 0.8rem' }}>Role: {lastSoldPlayer.players?.player_role}</p>
-                                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--accent-gold)' }}>
-                                    ₹{(lastSoldPlayer.sold_price || 0).toLocaleString('en-IN')}
+                                <div style={{ fontSize: '1.8rem', fontWeight: 900, color: lastSoldPlayer.sold_price === 0 ? '#60a5fa' : 'var(--accent-gold)' }}>
+                                    {lastSoldPlayer.sold_price === 0 ? '🎁 FREE (₹0)' : `₹${(lastSoldPlayer.sold_price || 0).toLocaleString('en-IN')}`}
                                 </div>
                             </div>
                         </div>
@@ -742,7 +735,9 @@ const YouTubeStreamProjectorPage = () => {
                             const winT = teams.find(t => t.id === lastSoldPlayer.team_id);
                             return (
                                 <div style={{ background: 'rgba(57,255,20,0.1)', border: '1px solid var(--accent-green)', padding: '1rem', borderRadius: '12px' }}>
-                                    <span style={{ fontSize: '0.85rem', color: 'var(--accent-green)', display: 'block', marginBottom: '0.2rem' }}>BOUGHT BY</span>
+                                    <span style={{ fontSize: '0.85rem', color: lastSoldPlayer.sold_price === 0 ? '#60a5fa' : 'var(--accent-green)', display: 'block', marginBottom: '0.2rem' }}>
+                                        {lastSoldPlayer.sold_price === 0 ? 'ASSIGNED FREE TO' : 'BOUGHT BY'}
+                                    </span>
                                     <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#fff' }}>
                                         {winT ? winT.team_name : 'Unknown Team'}
                                     </div>

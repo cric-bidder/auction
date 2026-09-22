@@ -46,10 +46,11 @@ function App() {
           <Route path="/live-auction-projector" element={<LiveAuctionProjectorPage />} />
           <Route path="/youtube-live-projector" element={<YouTubeStreamProjectorPage />} />
           <Route path="/obs-overlay" element={<OBSOverlayPage />} />
-          <Route path="/stream-setup" element={<StreamSetupPage />} />
           <Route path="/all-players" element={<PublicPlayersPage />} />
           <Route path="/team-budget" element={<TeamBudgetPage />} />
           <Route path="/stats" element={<StatsPage />} />
+
+          <Route path="/stream-setup" element={<ProtectedRoute><StreamSetupPage /></ProtectedRoute>} />
 
           <Route path="/players" element={<ProtectedRoute><PlayersPage /></ProtectedRoute>} />
           <Route path="/player/:id" element={<PlayerProfilePage />} />

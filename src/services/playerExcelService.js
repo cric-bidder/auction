@@ -16,7 +16,6 @@ const HEADER_MAPPINGS = {
   dob: ['dob', 'dateofbirth', 'birthdate', 'birth_date', 'date_of_birth'],
   gender: ['gender', 'sex'],
   area: ['area', 'city', 'location', 'town', 'address', 'locality'],
-  flat_no: ['flat_no', 'flatno', 'flat', 'block', 'flatblock', 'flat_block_number', 'flatblocknumber', 'flat_block_no', 'flat_number', 'blockno', 'blocknumber', 'flat_block'],
   player_role: ['playerrole', 'role', 'specialization', 'player_role', 'playingrole', 'playertype', 'type'],
   batting_style: ['battingstyle', 'batting', 'batting_style', 'batsmantype', 'battinghand', 'battingtype'],
   bowling_style: ['bowlingstyle', 'bowling', 'bowling_style', 'bowlertype', 'bowlingarm', 'bowlingtype'],
@@ -248,7 +247,6 @@ export const parsePlayersExcel = async (file, existingPlayers = []) => {
             dob: normalizeDate(rowObj.dob),
             gender: normalizeGender(rowObj.gender),
             area: (rowObj.area || '').toString().trim() || null,
-            flat_no: (rowObj.flat_no || '').toString().trim() || null,
             player_role: normalizeRole(rowObj.player_role),
             batting_style: normalizeBattingStyle(rowObj.batting_style),
             bowling_style: normalizeBowlingStyle(rowObj.bowling_style),
@@ -321,7 +319,6 @@ export const downloadPlayerImportTemplate = () => {
   const headers = [
     "First Name",
     "Last Name",
-    "Flat No",
     "Mobile",
     "Gender",
     "Player Role",
@@ -342,7 +339,6 @@ export const downloadPlayerImportTemplate = () => {
     [
       "Virat",
       "Kohli",
-      "701 A/3",
       "9876543210",
       "Male",
       "Batter",
@@ -361,7 +357,6 @@ export const downloadPlayerImportTemplate = () => {
     [
       "Jasprit",
       "Bumrah",
-      "402 A/2",
       "9876543211",
       "Male",
       "Bowler",
@@ -380,7 +375,6 @@ export const downloadPlayerImportTemplate = () => {
     [
       "Smriti",
       "Mandhana",
-      "503 A/2",
       "9876543212",
       "Female",
       "Batter",
@@ -399,7 +393,6 @@ export const downloadPlayerImportTemplate = () => {
     [
       "Hardik",
       "Pandya",
-      "1304 A/3",
       "9876543213",
       "Male",
       "All Rounder",
@@ -424,7 +417,6 @@ export const downloadPlayerImportTemplate = () => {
   ws['!cols'] = [
     { wch: 15 }, // First Name
     { wch: 15 }, // Last Name
-    { wch: 14 }, // Flat No
     { wch: 16 }, // Mobile
     { wch: 12 }, // Gender
     { wch: 16 }, // Player Role
@@ -500,7 +492,6 @@ export const importPlayersBatch = async (auctionId, validPlayerRows, onProgress)
         email: p.email || null,
         dob: p.dob || null,
         area: p.area || null,
-        flat_no: p.flat_no || null,
         gender: p.gender || 'Male',
         photo_url: p.photo_url || null,
         aadhar_card_url: p.aadhar_card_url || null,

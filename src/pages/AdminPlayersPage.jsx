@@ -60,7 +60,7 @@ const AdminPlayersPage = () => {
 
   const initialFormState = {
     first_name: '', last_name: '', mobile: '', email: '',
-    dob: '', area: '', flat_no: '', gender: '',
+    dob: '', area: '', gender: '',
     player_role: '', batting_style: '', bowling_style: '',
     tshirt_name: '', tshirt_size: '', tshirt_number: '',
     photo: null, aadhar: null,
@@ -331,7 +331,7 @@ const AdminPlayersPage = () => {
     setFormData({
       first_name: p.first_name || '', last_name: p.last_name || '',
       mobile: p.mobile || '', email: p.email || '',
-      dob: p.dob || '', area: p.area || '', flat_no: p.flat_no || '', gender: p.gender || '',
+      dob: p.dob || '', area: p.area || '', gender: p.gender || '',
       player_role: p.player_role || '', batting_style: p.batting_style || '', bowling_style: p.bowling_style || '',
       tshirt_name: p.tshirt_name || '', tshirt_size: p.tshirt_size || '', tshirt_number: p.tshirt_number || '',
       photo: null, aadhar: null,
@@ -421,7 +421,7 @@ const AdminPlayersPage = () => {
       const playerPayload = {
         first_name: formData.first_name, last_name: formData.last_name,
         mobile: formData.mobile, email: formData.email,
-        dob: formData.dob || null, area: formData.area || null, flat_no: formData.flat_no || null, gender: formData.gender || null,
+        dob: formData.dob || null, area: formData.area || null, gender: formData.gender || null,
         photo_url, aadhar_card_url,
         player_role: formData.player_role, batting_style: formData.batting_style, bowling_style: formData.bowling_style,
         tshirt_name: formData.tshirt_name || null,
@@ -663,7 +663,6 @@ const AdminPlayersPage = () => {
       `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase().includes(lowSearch) ||
       (p.mobile && p.mobile.includes(searchTerm)) ||
       (normSearch && normalizeMobile(p.mobile).includes(normSearch)) ||
-      (p.flat_no && p.flat_no.toLowerCase().includes(lowSearch)) ||
       (p.player_number && p.player_number.toString().includes(searchTerm));
 
     const matchesGender = genderFilter === 'all' || (p.gender && p.gender.toLowerCase() === genderFilter.toLowerCase());
@@ -805,10 +804,6 @@ const AdminPlayersPage = () => {
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                   </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Flat - Block number</label>
-                  <input type="text" name="flat_no" placeholder="e.g. A-102" value={formData.flat_no} onChange={handleFormChange} className="form-input" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Area / City</label>
@@ -1064,10 +1059,7 @@ const AdminPlayersPage = () => {
                         </td>
                         <td style={{ padding: '1rem' }}>
                           <div style={{ fontWeight: 'bold' }}>{p.first_name} {p.last_name}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            {p.email}
-                            {p.flat_no && <span style={{ color: 'var(--accent-gold)', marginLeft: p.email ? '0.5rem' : '0', fontWeight: '500' }}>• Flat: {p.flat_no}</span>}
-                          </div>
+                          {p.email && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.email}</div>}
                           {(p.tshirt_name || p.tshirt_size || p.tshirt_number) && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', marginTop: '2px', fontWeight: '500' }}>
                               👕 {p.tshirt_name || '-'} | Size: {p.tshirt_size || '-'} | No: {p.tshirt_number || '-'}

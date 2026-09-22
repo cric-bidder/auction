@@ -8,6 +8,7 @@ import { generateAllTeamsPDF, generateSingleTeamPDF, generateVendorTshirtPDF, ge
 import { Download, LayoutGrid, List, User } from 'lucide-react';
 import IndianCurrencyDisplay from '../components/IndianCurrencyDisplay';
 import { formatIndianCurrencyWords } from '../utils/currencyUtils';
+import { calculateTeamMaxBid } from '../utils/auctionUtils';
 
 const getTeamInitials = (name) => {
   if (!name) return '';
@@ -661,6 +662,8 @@ const TeamDetailsPage = () => {
                             const playingSquad = teamSquad.filter(p => !p.is_owner || p.is_captain || p.is_icon || p.id == team.captain_id || p.id == team.vice_captain_id || (p.sold_price > 0 || p.auction_status === 'sold'));
                             const isExpanded = !!expandedTeams[team.id];
 
+                            const { maxBid } = calculateTeamMaxBid(team, activeAuction, playingSquad);
+
                             return (
                                 <div key={team.id} className="glass-panel render-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', height: '100%', border: '1px solid var(--glass-border)' }}>
                                     {/* Header */}
@@ -694,14 +697,18 @@ const TeamDetailsPage = () => {
                                     </div>
 
                                     {/* Financial Stats Row */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.2rem', background: 'rgba(255,255,255,0.02)', padding: '0.8rem', borderRadius: '8px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '1.2rem', background: 'rgba(255,255,255,0.02)', padding: '0.8rem 0.5rem', borderRadius: '8px' }}>
                                          <div>
-                                             <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Spent</span>
-                                             <IndianCurrencyDisplay amount={teamSpent} size="sm" color="#fff" />
+                                             <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Spent</span>
+                                             <IndianCurrencyDisplay amount={teamSpent} size="xs" color="#fff" />
                                          </div>
                                          <div>
-                                             <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Remaining</span>
-                                             <IndianCurrencyDisplay amount={teamRemaining} size="sm" color="var(--accent-green)" />
+                                             <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Remaining</span>
+                                             <IndianCurrencyDisplay amount={teamRemaining} size="xs" color="var(--accent-green)" />
+                                         </div>
+                                         <div>
+                                             <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--accent-gold)', textTransform: 'uppercase', fontWeight: 'bold' }}>Max Bid</span>
+                                             <IndianCurrencyDisplay amount={maxBid === Infinity ? 0 : maxBid} size="xs" color="var(--accent-gold)" />
                                          </div>
                                      </div>
 
@@ -813,7 +820,11 @@ const TeamDetailsPage = () => {
                                                     auctionedPlayers.map(p => (
                                                         <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-main)', padding: '0.15rem 0', alignItems: 'center' }}>
                                                              <span>{p.name} <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>({p.role})</span></span>
-                                                             <IndianCurrencyDisplay amount={p.price || 0} size="xs" color="var(--accent-green)" align="right" />
+                                                             {Number(p.price) > 0 ? (
+                                                                 <IndianCurrencyDisplay amount={p.price} size="xs" color="var(--accent-green)" align="right" />
+                                                             ) : (
+                                                                 <span style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 'bold' }}>🎁 FREE (₹0)</span>
+                                                             )}
                                                          </div>
                                                     ))
                                                 )}
@@ -875,6 +886,8 @@ const TeamDetailsPage = () => {
                             const playingSquad = teamSquad.filter(p => !p.is_owner || p.is_captain || p.is_icon || p.id == team.captain_id || p.id == team.vice_captain_id || (p.sold_price > 0 || p.auction_status === 'sold'));
                             const isExpanded = !!expandedTeams[team.id];
 
+                            const { maxBid } = calculateTeamMaxBid(team, activeAuction, playingSquad);
+
                             return (
                                 <div key={team.id} className="glass-panel render-card" style={{ padding: '1.2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid var(--glass-border)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
@@ -905,14 +918,18 @@ const TeamDetailsPage = () => {
                                         </div>
 
                                         {/* Financial Stats Details */}
-                                        <div style={{ display: 'flex', gap: '1.5rem', flex: '0 1 auto', minWidth: '220px' }}>
+                                        <div style={{ display: 'flex', gap: '1.2rem', flex: '0 1 auto', minWidth: '240px' }}>
                                              <div>
-                                                 <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Spent Purse</span>
+                                                 <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Spent</span>
                                                  <IndianCurrencyDisplay amount={teamSpent} size="xs" color="#fff" />
                                              </div>
                                              <div>
-                                                 <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Remaining Purse</span>
+                                                 <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Remaining</span>
                                                  <IndianCurrencyDisplay amount={teamRemaining} size="xs" color="var(--accent-green)" />
+                                             </div>
+                                             <div>
+                                                 <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--accent-gold)', textTransform: 'uppercase', fontWeight: 'bold' }}>Max Bid</span>
+                                                 <IndianCurrencyDisplay amount={maxBid === Infinity ? 0 : maxBid} size="xs" color="var(--accent-gold)" />
                                              </div>
                                          </div>
 
@@ -1295,7 +1312,11 @@ const TeamDetailsPage = () => {
                                                             </div>
                                                         </div>
                                                         <div style={{ textAlign: 'right' }}>
-                                                            <div style={{ fontWeight: 'bold', color: 'var(--accent-green)', fontSize: '0.9rem' }}>₹{p.sold_price?.toLocaleString()}</div>
+                                                            {Number(p.sold_price) > 0 ? (
+                                                                <div style={{ fontWeight: 'bold', color: 'var(--accent-green)', fontSize: '0.9rem' }}>₹{p.sold_price?.toLocaleString('en-IN')}</div>
+                                                            ) : (
+                                                                <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', fontWeight: 'bold' }}>🎁 FREE (₹0)</span>
+                                                            )}
                                                         </div>
                                                     </Link>
                                                 ))}

@@ -98,6 +98,7 @@ const StreamSetupPage = () => {
                 title="📺 YouTube & OBS Broadcast Setup Wizard" 
                 subtitle="Configure live stream camera modes, OBS lower-third overlay links, and YouTube setup" 
                 showLogos={false} 
+                mode="admin"
             />
 
             <div style={{ maxWidth: '1100px', margin: '1.5rem auto', padding: '0 1rem', display: 'flex', flexDirection: 'column', gap: '2rem', position: 'relative', zIndex: 1 }}>

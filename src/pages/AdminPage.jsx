@@ -195,6 +195,12 @@ const AdminPage = () => {
             <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem', lineHeight: 1.5 }}>Track team squads and remaining auction budget.</p>
           </Link>
 
+          <Link to={`/stream-setup${codeParam}`} className="glass-panel render-card" style={{ padding: '3rem 2rem', textAlign: 'center', textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', border: '1px solid rgba(57,255,20,0.3)' }}>
+            <div style={{ fontSize: '3.5rem' }}>📡</div>
+            <h3 style={{ color: 'var(--accent-green)', margin: 0, fontSize: '1.5rem' }}>Stream & OBS Setup</h3>
+            <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem', lineHeight: 1.5 }}>Configure YouTube live streams, camera inputs, and OBS overlays.</p>
+          </Link>
+
           {/* Clean Up Data Danger Zone Card */}
           <div
             onClick={() => {

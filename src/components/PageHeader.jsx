@@ -15,6 +15,7 @@ const PageHeader = ({ title, subtitle, showLogos = true, showNav = true, mode = 
     '/admin',
     '/live-auction',
     '/auction',
+    '/stream-setup',
     '/admin-players',
     '/auction-teams',
     '/admin-owners',
@@ -35,7 +36,6 @@ const PageHeader = ({ title, subtitle, showLogos = true, showNav = true, mode = 
     { path: '/all-players', label: 'Players Pool', icon: '👥' },
     { path: '/stats', label: 'Auction Stats', icon: '📊' },
     { path: '/live-auction-projector', label: 'Live Screen', icon: '📺' },
-    { path: '/stream-setup', label: 'Stream Setup', icon: '📡' },
     { path: '/register', label: 'Register', icon: '📝' },
     { path: '/pricing', label: 'Pricing', icon: '💰' }
   ];

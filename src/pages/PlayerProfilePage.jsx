@@ -237,13 +237,6 @@ const PlayerProfilePage = () => {
                 <div style={{ fontSize: isMobile ? '1.3rem' : '1.6rem', fontWeight: 600, color: 'var(--text-main)' }}>{player.area || 'N/A'}</div>
               </div>
 
-              {player.flat_no && (
-                <div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--accent-gold)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.4rem' }}>Flat - Block number</div>
-                  <div style={{ fontSize: isMobile ? '1.3rem' : '1.6rem', fontWeight: 600, color: 'var(--accent-gold)' }}>{player.flat_no}</div>
-                </div>
-              )}
-
               {(player.tshirt_name || player.tshirt_size || player.tshirt_number) && (
                 <>
                   <div>

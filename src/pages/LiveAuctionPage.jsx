@@ -8,6 +8,7 @@ import { soundEngine } from '../services/soundEffects';
 import { Volume2, VolumeX } from 'lucide-react';
 import IndianCurrencyDisplay from '../components/IndianCurrencyDisplay';
 import { formatIndianCurrencyWords } from '../utils/currencyUtils';
+import { calculateTeamMaxBid } from '../utils/auctionUtils';
 
 const getTeamInitials = (name) => {
   if (!name) return '';
@@ -50,6 +51,17 @@ const LiveAuctionPage = () => {
     // Direct Custom Bidding States
     const [customBid, setCustomBid] = useState('');
     const [customBidTeam, setCustomBidTeam] = useState('');
+
+    // Reserve Rule Enforcement State (Strict vs Flexible, persisted per auction)
+    const [enforceReserveRule, setEnforceReserveRule] = useState(() => {
+        return localStorage.getItem(`enforce_reserve_${auctionCode}`) !== 'false';
+    });
+
+    // Direct / Free Player Assignment States
+    const [showDirectAssignModal, setShowDirectAssignModal] = useState(false);
+    const [selectedAssignTeam, setSelectedAssignTeam] = useState('');
+    const [assignPriceMode, setAssignPriceMode] = useState('free'); // 'free' | 'base_price'
+    const [assigningPendingPlayer, setAssigningPendingPlayer] = useState(null);
 
     // Sold & Unsold Tab Search and Gender Filter States
     const [soldSearchTerm, setSoldSearchTerm] = useState(() => sessionStorage.getItem('live_auction_sold_search') || '');
@@ -213,7 +225,7 @@ const LiveAuctionPage = () => {
             setActionLoading(true);
 
             // Calculate next bid
-            const basePrice = activeAuction.base_price || 0;
+            const basePrice = activeAuction?.base_price || 0;
             const currentBid = activePlayer.current_bid_price || 0;
             let nextBid = 0;
 
@@ -223,11 +235,10 @@ const LiveAuctionPage = () => {
                 nextBid = currentBid + basePrice;
             }
 
-            // Check max players & team budget
+            // Check max players & max allowed bid for this team
             const maxPlayers = activeAuction?.max_players || 11;
             const targetTeam = teams.find(t => t.id === teamId);
-            const teamPlayers = players.filter(p => p.team_id === teamId);
-            const spent = teamPlayers.reduce((acc, p) => acc + (p.sold_price || 0), 0);
+            const teamPlayers = players.filter(p => p.team_id === teamId && p.id !== activePlayer.id);
 
             const isAlreadyInTeam = activePlayer.team_id === teamId;
             if (!isAlreadyInTeam && teamPlayers.length >= maxPlayers) {
@@ -235,8 +246,14 @@ const LiveAuctionPage = () => {
                 return;
             }
 
-            if (spent + nextBid > activeAuction.max_budget) {
-                alert(`Insufficient budget! ${targetTeam?.team_name || 'Team'} has only ${activeAuction.max_budget - spent} remaining.`);
+            // Calculate max allowed bid using reserve rule
+            const { maxBid, futureSlots, reserveNeeded } = calculateTeamMaxBid(targetTeam, activeAuction, teamPlayers, enforceReserveRule);
+
+            if (nextBid > maxBid) {
+                const reserveMsg = enforceReserveRule
+                    ? `\n\nRule: Team must reserve ₹${reserveNeeded.toLocaleString('en-IN')} to buy remaining ${futureSlots} players at base price ₹${basePrice.toLocaleString('en-IN')}. (You can toggle Reserve Lock OFF in the top toolbar if not enforcing this).`
+                    : '';
+                alert(`Cannot place bid of ₹${nextBid.toLocaleString('en-IN')}!\n\nMax allowed bid for "${targetTeam?.team_name || 'Team'}" is ₹${maxBid.toLocaleString('en-IN')}.${reserveMsg}`);
                 return;
             }
 
@@ -299,7 +316,7 @@ const LiveAuctionPage = () => {
             return;
         }
 
-        // Check max players & team budget
+        // Check max players & max allowed bid
         const maxPlayers = activeAuction?.max_players || 11;
         const teamId = customBidTeam;
         const targetTeam = teams.find(t => String(t.id) === String(teamId));
@@ -308,8 +325,7 @@ const LiveAuctionPage = () => {
             return;
         }
 
-        const teamPlayers = players.filter(p => String(p.team_id) === String(targetTeam.id));
-        const spent = teamPlayers.reduce((acc, p) => acc + (p.sold_price || 0), 0);
+        const teamPlayers = players.filter(p => String(p.team_id) === String(targetTeam.id) && p.id !== activePlayer.id);
 
         const isAlreadyInTeam = activePlayer.team_id === targetTeam.id;
         if (!isAlreadyInTeam && teamPlayers.length >= maxPlayers) {
@@ -317,8 +333,15 @@ const LiveAuctionPage = () => {
             return;
         }
 
-        if (spent + bidAmount > activeAuction.max_budget) {
-            alert(`Insufficient budget! ${targetTeam.team_name} has only ${activeAuction.max_budget - spent} remaining.`);
+        // Calculate max allowed bid using reserve rule
+        const { maxBid, futureSlots, reserveNeeded } = calculateTeamMaxBid(targetTeam, activeAuction, teamPlayers, enforceReserveRule);
+        const basePrice = activeAuction?.base_price || 0;
+
+        if (bidAmount > maxBid) {
+            const reserveMsg = enforceReserveRule
+                ? `\n\nRule: Team must reserve ₹${reserveNeeded.toLocaleString('en-IN')} to buy remaining ${futureSlots} players at base price ₹${basePrice.toLocaleString('en-IN')}. (You can toggle Reserve Lock OFF in the top toolbar if not enforcing this).`
+                : '';
+            alert(`Cannot place custom bid of ₹${bidAmount.toLocaleString('en-IN')}!\n\nMax allowed bid for "${targetTeam.team_name}" is ₹${maxBid.toLocaleString('en-IN')}.${reserveMsg}`);
             return;
         }
 
@@ -363,6 +386,133 @@ const LiveAuctionPage = () => {
             setCustomBidTeam('');
         } catch (err) {
             alert("Failed to place custom bid");
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const finalizeDirectAssign = async (teamId, priceMode = 'free') => {
+        if (!activePlayer || actionLoading) return;
+        const targetTeam = teams.find(t => String(t.id) === String(teamId));
+        if (!targetTeam) {
+            alert("Please choose a team to receive this player.");
+            return;
+        }
+
+        const maxPlayers = activeAuction?.max_players || 11;
+        const teamPlayers = players.filter(p => String(p.team_id) === String(targetTeam.id) && p.id !== activePlayer.id);
+        if (teamPlayers.length >= maxPlayers) {
+            alert(`Cannot assign player! ${targetTeam.team_name} has already reached the maximum squad limit of ${maxPlayers} players.`);
+            return;
+        }
+
+        const basePrice = activeAuction?.base_price || 0;
+        const isBasePrice = priceMode === 'base_price';
+        const finalPrice = isBasePrice ? basePrice : 0;
+
+        // If Base Price mode, check team purse
+        const maxBudget = activeAuction?.max_budget || 0;
+        const spent = teamPlayers.reduce((acc, p) => acc + (p.sold_price || 0), 0);
+        const remainingPurse = maxBudget > 0 ? (maxBudget - spent) : Infinity;
+
+        if (isBasePrice && maxBudget > 0 && remainingPurse < basePrice) {
+            alert(`Cannot assign at Base Price! ${targetTeam.team_name} only has ₹${remainingPurse.toLocaleString('en-IN')} remaining, but base price is ₹${basePrice.toLocaleString('en-IN')}.`);
+            return;
+        }
+
+        const playerName = `${activePlayer.players?.first_name || ''} ${activePlayer.players?.last_name || ''}`.trim();
+        const confirmMsg = isBasePrice
+            ? `Assign ${playerName} to "${targetTeam.team_name}" at BASE PRICE (₹${basePrice.toLocaleString('en-IN')})?\n\nThis will add them to the squad and deduct ₹${basePrice.toLocaleString('en-IN')} from their purse.`
+            : `Give ${playerName} to "${targetTeam.team_name}" for FREE (₹0)?\n\nThis will add them to the squad at ₹0 cost without deducting purse.`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            setActionLoading(true);
+            const { error } = await supabase
+                .from('auction_players')
+                .update({
+                    auction_status: 'sold',
+                    team_id: targetTeam.id,
+                    sold_price: finalPrice,
+                    current_bid_price: 0,
+                    current_bid_team_id: null,
+                    previous_bid_price: 0,
+                    previous_bid_team_id: null
+                })
+                .eq('id', activePlayer.id);
+
+            if (error) throw error;
+            soundEngine.playSoldGavelSound();
+            setShowDirectAssignModal(false);
+            setSelectedAssignTeam('');
+            await fetchData();
+        } catch (err) {
+            console.error("Direct player assignment failed:", err);
+            alert("Failed to assign player.");
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const assignPendingPlayerDirect = async (targetPlayer, teamId, priceMode = 'free') => {
+        if (!targetPlayer || actionLoading) return;
+        const targetTeam = teams.find(t => String(t.id) === String(teamId));
+        if (!targetTeam) {
+            alert("Please choose a team.");
+            return;
+        }
+
+        const maxPlayers = activeAuction?.max_players || 11;
+        const teamPlayers = players.filter(p => String(p.team_id) === String(targetTeam.id));
+        if (teamPlayers.length >= maxPlayers) {
+            alert(`Cannot assign player! ${targetTeam.team_name} has already reached the maximum squad limit of ${maxPlayers} players.`);
+            return;
+        }
+
+        const basePrice = activeAuction?.base_price || 0;
+        const isBasePrice = priceMode === 'base_price';
+        const finalPrice = isBasePrice ? basePrice : 0;
+
+        const maxBudget = activeAuction?.max_budget || 0;
+        const spent = teamPlayers.reduce((acc, p) => acc + (p.sold_price || 0), 0);
+        const remainingPurse = maxBudget > 0 ? (maxBudget - spent) : Infinity;
+
+        if (isBasePrice && maxBudget > 0 && remainingPurse < basePrice) {
+            alert(`Cannot assign at Base Price! ${targetTeam.team_name} only has ₹${remainingPurse.toLocaleString('en-IN')} remaining, but base price is ₹${basePrice.toLocaleString('en-IN')}.`);
+            return;
+        }
+
+        const playerName = `${targetPlayer.players?.first_name || ''} ${targetPlayer.players?.last_name || ''}`.trim();
+        const confirmMsg = isBasePrice
+            ? `Assign ${playerName} to "${targetTeam.team_name}" at BASE PRICE (₹${basePrice.toLocaleString('en-IN')})?\n\nThis will directly add them to the squad and deduct ₹${basePrice.toLocaleString('en-IN')} from their purse.`
+            : `Give ${playerName} to "${targetTeam.team_name}" for FREE (₹0)?\n\nThis will directly add them to the squad at ₹0 cost without running an auction.`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            setActionLoading(true);
+            const { error } = await supabase
+                .from('auction_players')
+                .update({
+                    auction_status: 'sold',
+                    team_id: targetTeam.id,
+                    sold_price: finalPrice,
+                    current_bid_price: 0,
+                    current_bid_team_id: null,
+                    previous_bid_price: 0,
+                    previous_bid_team_id: null
+                })
+                .eq('id', targetPlayer.id);
+
+            if (error) throw error;
+            soundEngine.playSoldGavelSound();
+            setAssigningPendingPlayer(null);
+            setSelectedAssignTeam('');
+            await fetchData();
+        } catch (err) {
+            console.error("Pending player assignment failed:", err);
+            alert("Failed to assign player.");
         } finally {
             setActionLoading(false);
         }
@@ -597,7 +747,6 @@ const LiveAuctionPage = () => {
         const matchesStatus = !['sold', 'unsold', 'active'].includes(p.auction_status) && !p.is_icon && !p.is_captain;
         const lowSearch = searchTerm.toLowerCase();
         const matchesSearch = (p.players.first_name + ' ' + p.players.last_name).toLowerCase().includes(lowSearch) || 
-                              (p.players.flat_no && p.players.flat_no.toLowerCase().includes(lowSearch)) ||
                               (p.player_number && p.player_number.toString().includes(searchTerm));
         const matchesRole = roleFilter === 'ALL' || p.players.player_role === roleFilter;
         const matchesGender = !activeAuction?.is_separate_gender || (p.players?.gender || '').toLowerCase() === liveGenderSession.toLowerCase();
@@ -621,8 +770,7 @@ const LiveAuctionPage = () => {
         const fullName = `${p.players?.first_name || ''} ${p.players?.last_name || ''}`.toLowerCase();
         const numStr = p.player_number != null ? p.player_number.toString() : '';
         const teamNameStr = (team?.team_name || '').toLowerCase();
-        const flatStr = (p.players?.flat_no || '').toLowerCase();
-        const matchesSearch = !lowSearch || fullName.includes(lowSearch) || numStr.includes(lowSearch) || teamNameStr.includes(lowSearch) || flatStr.includes(lowSearch);
+        const matchesSearch = !lowSearch || fullName.includes(lowSearch) || numStr.includes(lowSearch) || teamNameStr.includes(lowSearch);
 
         return matchesGender && matchesSearch;
     });
@@ -645,8 +793,7 @@ const LiveAuctionPage = () => {
         const numStr = p.player_number != null ? p.player_number.toString() : '';
         const roleStr = (p.players?.player_role || '').toLowerCase();
         const stateStr = (p.players?.state || '').toLowerCase();
-        const flatStr = (p.players?.flat_no || '').toLowerCase();
-        const matchesSearch = !lowSearch || fullName.includes(lowSearch) || numStr.includes(lowSearch) || roleStr.includes(lowSearch) || stateStr.includes(lowSearch) || flatStr.includes(lowSearch);
+        const matchesSearch = !lowSearch || fullName.includes(lowSearch) || numStr.includes(lowSearch) || roleStr.includes(lowSearch) || stateStr.includes(lowSearch);
 
         return matchesGender && matchesSearch;
     });
@@ -755,7 +902,34 @@ const LiveAuctionPage = () => {
                     >
                         UNSOLD ({unsoldPlayers.length})
                     </button>
-                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const nextVal = !enforceReserveRule;
+                                setEnforceReserveRule(nextVal);
+                                if (auctionCode) {
+                                    localStorage.setItem(`enforce_reserve_${auctionCode}`, String(nextVal));
+                                }
+                            }}
+                            className="btn btn-outline"
+                            style={{
+                                padding: '0.55rem 0.9rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                fontSize: '0.82rem',
+                                fontWeight: 'bold',
+                                borderRadius: '8px',
+                                borderColor: enforceReserveRule ? 'var(--accent-green)' : '#f59e0b',
+                                color: enforceReserveRule ? 'var(--accent-green)' : '#f59e0b',
+                                background: enforceReserveRule ? 'rgba(57, 255, 20, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                                cursor: 'pointer'
+                            }}
+                            title={enforceReserveRule ? "Strict Reserve Mode: Teams must reserve base price for all remaining future slots. Click to switch to Flexible mode." : "Flexible Mode: Teams can bid full remaining purse without base price reserve lock. Click to switch to Strict mode."}
+                        >
+                            {enforceReserveRule ? '🛡️ Reserve Lock: ON (Strict)' : '⚡ Reserve Lock: OFF (Flexible)'}
+                        </button>
                         <button
                           onClick={() => setIsMuted(soundEngine.toggleMute())}
                           className="btn btn-outline"
@@ -817,11 +991,6 @@ const LiveAuctionPage = () => {
                                                 </span>
                                               )}
                                             </p>
-                                            {activePlayer.players.flat_no && (
-                                              <div style={{ marginTop: '0.4rem', fontSize: '1.1rem', color: 'var(--accent-gold)', fontWeight: 'bold' }}>
-                                                🏢 Flat - Block number: {activePlayer.players.flat_no}
-                                              </div>
-                                            )}
 
                                             <div style={{ marginTop: '2rem', background: 'rgba(255,215,0,0.1)', padding: '1.5rem', borderRadius: '10px', border: '1px solid var(--accent-gold)', overflow: 'hidden' }}>
                                                 <div style={{ fontSize: '0.9rem', color: 'var(--accent-gold)', textTransform: 'uppercase', letterSpacing: '2px' }}>Current Highest Bid</div>
@@ -874,6 +1043,19 @@ const LiveAuctionPage = () => {
                                             style={{ padding: '0.7rem 2.2rem', background: '#10b981', borderColor: '#10b981', fontSize: '1.05rem', fontWeight: 'bold' }}
                                         >
                                             🔨 SOLD
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedAssignTeam(activePlayer.current_bid_team_id || '');
+                                                setAssignPriceMode('free');
+                                                setShowDirectAssignModal(true);
+                                            }}
+                                            disabled={actionLoading || !activePlayer}
+                                            className="btn"
+                                            style={{ padding: '0.7rem 1.6rem', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: '#fff', fontSize: '1rem', fontWeight: 'bold', border: '1px solid #c084fc' }}
+                                            title="Assign this active player directly to a team (Free ₹0 or Base Price)"
+                                        >
+                                            ⚡ DIRECT ASSIGN
                                         </button>
                                         <button
                                             onClick={markUnsold}
@@ -941,36 +1123,43 @@ const LiveAuctionPage = () => {
                                         </div>
 
                                         <h4 style={{ color: 'var(--text-muted)', marginBottom: '1.2rem', textAlign: 'left' }}>PLACE BID FOR:</h4>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '1rem' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
                                             {displayTeams.map(team => {
                                                  const maxPlayers = activeAuction?.max_players || 11;
                                                  const teamSquad = players.filter(p => p.team_id === team.id);
+                                                 const teamSquadExcludingActive = players.filter(p => p.team_id === team.id && p.id !== activePlayer?.id);
                                                  const squadCount = teamSquad.length;
                                                  const isFull = squadCount >= maxPlayers;
                                                  const isCurrentBidder = activePlayer && team.id === activePlayer.current_bid_team_id;
 
                                                  const maxBudget = activeAuction?.max_budget || 0;
                                                  const spent = teamSquad.reduce((acc, p) => acc + (p.sold_price || 0), 0);
-                                                 const activeBidCost = isCurrentBidder ? (activePlayer?.current_bid_price || 0) : 0;
-                                                 const remainingPurse = maxBudget - spent - activeBidCost;
+                                                 const remainingPurse = maxBudget - spent;
+
+                                                 // Max Bid calculation with enforceReserveRule
+                                                 const maxBidInfo = calculateTeamMaxBid(team, activeAuction, teamSquadExcludingActive, enforceReserveRule);
+                                                 const basePrice = activeAuction?.base_price || 0;
+                                                 const currentBid = activePlayer?.current_bid_price || 0;
+                                                 const nextBid = !activePlayer?.current_bid_team_id ? basePrice : (currentBid + basePrice);
+                                                 const cannotAffordNext = !isCurrentBidder && (nextBid > maxBidInfo.maxBid);
 
                                                  return (
                                                      <button
                                                          key={team.id}
                                                          onClick={() => placeBid(team.id)}
-                                                         disabled={actionLoading || (isFull && !isCurrentBidder)}
+                                                         disabled={actionLoading || (isFull && !isCurrentBidder) || cannotAffordNext}
                                                          className="btn btn-outline"
                                                          style={{
                                                              display: 'flex',
                                                              flexDirection: 'column',
                                                              alignItems: 'center',
-                                                             gap: '0.4rem',
+                                                             gap: '0.35rem',
                                                              padding: '0.8rem 0.6rem',
                                                              position: 'relative',
-                                                             borderColor: isCurrentBidder ? 'var(--accent-gold)' : isFull ? '#ef4444' : 'var(--border-color)',
-                                                             background: isCurrentBidder ? 'rgba(255,215,0,0.15)' : isFull ? 'rgba(239,68,68,0.1)' : 'transparent',
-                                                             opacity: isFull && !isCurrentBidder ? 0.6 : 1,
-                                                             cursor: isFull && !isCurrentBidder ? 'not-allowed' : 'pointer'
+                                                             borderColor: isCurrentBidder ? 'var(--accent-gold)' : isFull ? '#ef4444' : cannotAffordNext ? 'rgba(239,68,68,0.5)' : 'var(--border-color)',
+                                                             background: isCurrentBidder ? 'rgba(255,215,0,0.15)' : isFull ? 'rgba(239,68,68,0.1)' : cannotAffordNext ? 'rgba(239,68,68,0.05)' : 'transparent',
+                                                             opacity: (isFull && !isCurrentBidder) || cannotAffordNext ? 0.65 : 1,
+                                                             cursor: (isFull && !isCurrentBidder) || cannotAffordNext ? 'not-allowed' : 'pointer'
                                                          }}
                                                      >
                                                          {team.logo_url ? (
@@ -992,17 +1181,30 @@ const LiveAuctionPage = () => {
                                                              {isFull ? `FULL (${squadCount}/${maxPlayers})` : `Squad: ${squadCount}/${maxPlayers}`}
                                                          </span>
                                                          {maxBudget > 0 ? (
-                                                             <span style={{
-                                                                 fontSize: '0.72rem',
-                                                                 fontWeight: 'bold',
-                                                                 padding: '0.12rem 0.45rem',
-                                                                 borderRadius: '4px',
-                                                                 background: remainingPurse < 0 ? 'rgba(239,68,68,0.2)' : 'rgba(57,255,20,0.12)',
-                                                                 color: remainingPurse < 0 ? '#ef4444' : 'var(--accent-green)',
-                                                                 border: remainingPurse < 0 ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(57,255,20,0.3)'
-                                                             }}>
-                                                                 Purse: ₹{remainingPurse.toLocaleString('en-IN')}
-                                                             </span>
+                                                             <>
+                                                                 <span style={{
+                                                                     fontSize: '0.72rem',
+                                                                     fontWeight: 'bold',
+                                                                     padding: '0.12rem 0.45rem',
+                                                                     borderRadius: '4px',
+                                                                     background: remainingPurse < 0 ? 'rgba(239,68,68,0.2)' : 'rgba(57,255,20,0.12)',
+                                                                     color: remainingPurse < 0 ? '#ef4444' : 'var(--accent-green)',
+                                                                     border: remainingPurse < 0 ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(57,255,20,0.3)'
+                                                                 }}>
+                                                                     Purse: ₹{remainingPurse.toLocaleString('en-IN')}
+                                                                 </span>
+                                                                 <span style={{
+                                                                     fontSize: '0.72rem',
+                                                                     fontWeight: 'bold',
+                                                                     padding: '0.12rem 0.45rem',
+                                                                     borderRadius: '4px',
+                                                                     background: cannotAffordNext ? 'rgba(239,68,68,0.2)' : 'rgba(255,215,0,0.15)',
+                                                                     color: cannotAffordNext ? '#ef4444' : 'var(--accent-gold)',
+                                                                     border: cannotAffordNext ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(255,215,0,0.3)'
+                                                                 }}>
+                                                                     {cannotAffordNext ? `Cap: ₹${maxBidInfo.maxBid.toLocaleString('en-IN')}` : `Max Bid: ₹${maxBidInfo.maxBid.toLocaleString('en-IN')}`}
+                                                                 </span>
+                                                             </>
                                                          ) : (
                                                              <span style={{
                                                                  fontSize: '0.72rem',
@@ -1021,7 +1223,7 @@ const LiveAuctionPage = () => {
                                              })}
                                         </div>
 
-                                        <div style={{ display: 'flex', gap: '1.5rem', marginTop: '3rem', justifyContent: 'center' }}>
+                                        <div style={{ display: 'flex', gap: '1.2rem', marginTop: '3rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                                             <button
                                                 onClick={undoLastBid}
                                                 disabled={actionLoading || !activePlayer.current_bid_team_id}
@@ -1037,6 +1239,19 @@ const LiveAuctionPage = () => {
                                                 style={{ padding: '1rem 3rem', background: '#10b981', borderColor: '#10b981', fontSize: '1.1rem' }}
                                             >
                                                 🔨 SOLD
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedAssignTeam(activePlayer.current_bid_team_id || '');
+                                                    setAssignPriceMode('free');
+                                                    setShowDirectAssignModal(true);
+                                                }}
+                                                disabled={actionLoading || !activePlayer}
+                                                className="btn"
+                                                style={{ padding: '1rem 2rem', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: '#fff', fontSize: '1.1rem', fontWeight: 'bold', border: '1px solid #c084fc' }}
+                                                title="Assign this active player directly to a team (Free ₹0 or Base Price)"
+                                            >
+                                                ⚡ DIRECT ASSIGN
                                             </button>
                                             <button
                                                 onClick={markUnsold}
@@ -1085,6 +1300,19 @@ const LiveAuctionPage = () => {
                                             style={{ padding: '0.65rem 0.6rem', background: '#10b981', borderColor: '#10b981', fontSize: '0.85rem', fontWeight: 'bold', width: '100%' }}
                                         >
                                             🔨 SOLD
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedAssignTeam(activePlayer.current_bid_team_id || '');
+                                                setAssignPriceMode('free');
+                                                setShowDirectAssignModal(true);
+                                            }}
+                                            disabled={actionLoading || !activePlayer}
+                                            className="btn"
+                                            style={{ padding: '0.65rem 0.6rem', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: '#fff', fontSize: '0.82rem', fontWeight: 'bold', gridColumn: 'span 2' }}
+                                            title="Assign this active player directly to a team (Free ₹0 or Base Price)"
+                                        >
+                                            ⚡ DIRECT ASSIGN / FREE
                                         </button>
                                         <button
                                             onClick={markUnsold}
@@ -1152,18 +1380,32 @@ const LiveAuctionPage = () => {
                                                     </div>
                                                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                                                       {p.players.player_role}
-                                                      {p.players.flat_no && <span style={{ color: 'var(--accent-gold)', marginLeft: '0.4rem' }}>• Flat: {p.players.flat_no}</span>}
                                                     </div>
                                                 </div>
                                             </Link>
-                                            <button
-                                                onClick={() => startAuctionForPlayer(p.id)}
-                                                disabled={actionLoading || activePlayer}
-                                                className="btn btn-outline"
-                                                style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem' }}
-                                            >
-                                                Start
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedAssignTeam('');
+                                                        setAssignPriceMode('free');
+                                                        setAssigningPendingPlayer(p);
+                                                    }}
+                                                    disabled={actionLoading || activePlayer}
+                                                    className="btn"
+                                                    style={{ padding: '0.3rem 0.5rem', fontSize: '0.7rem', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.4)' }}
+                                                    title="Assign this player directly to a team (Free ₹0 or Base Price)"
+                                                >
+                                                    ⚡ Assign
+                                                </button>
+                                                <button
+                                                    onClick={() => startAuctionForPlayer(p.id)}
+                                                    disabled={actionLoading || activePlayer}
+                                                    className="btn btn-outline"
+                                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem' }}
+                                                >
+                                                    Start
+                                                </button>
+                                            </div>
                                         </div>
                                     ))
                                 )}
@@ -1274,7 +1516,13 @@ const LiveAuctionPage = () => {
                                                         </div>
                                                     </td>
                                                     <td style={{ padding: '1rem', textAlign: 'right' }}>
-                                                        <IndianCurrencyDisplay amount={p.sold_price || 0} size="sm" color="var(--accent-gold)" align="right" />
+                                                        {Number(p.sold_price) > 0 ? (
+                                                            <IndianCurrencyDisplay amount={p.sold_price} size="sm" color="var(--accent-gold)" align="right" />
+                                                        ) : (
+                                                            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', padding: '0.2rem 0.6rem', borderRadius: '4px', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.4)' }}>
+                                                                🎁 FREE (₹0)
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td style={{ padding: '1rem', textAlign: 'center' }}>
                                                         <button
@@ -1390,15 +1638,30 @@ const LiveAuctionPage = () => {
                                                 </td>
                                                 <td style={{ padding: '1rem' }}>{p.players.player_role}</td>
                                                 <td style={{ padding: '1rem' }}>{p.players.state}</td>
-                                                <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                                    <button
-                                                        onClick={() => restartPlayer(p)}
-                                                        disabled={actionLoading}
-                                                        className="btn btn-outline"
-                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', color: '#3b82f6', borderColor: '#3b82f6' }}
-                                                    >
-                                                        Revert
-                                                    </button>
+                                                <td style={{ padding: '1rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedAssignTeam('');
+                                                                setAssignPriceMode('free');
+                                                                setAssigningPendingPlayer(p);
+                                                            }}
+                                                            disabled={actionLoading || activePlayer}
+                                                            className="btn"
+                                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.4)' }}
+                                                            title="Assign unsold player to a team (Free ₹0 or Base Price)"
+                                                        >
+                                                            ⚡ Assign
+                                                        </button>
+                                                        <button
+                                                            onClick={() => restartPlayer(p)}
+                                                            disabled={actionLoading}
+                                                            className="btn btn-outline"
+                                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', color: '#3b82f6', borderColor: '#3b82f6' }}
+                                                        >
+                                                            Revert
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -1406,6 +1669,324 @@ const LiveAuctionPage = () => {
                                 </table>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Modal for Active Player Direct Assignment (Free ₹0 vs Base Price) */}
+                {showDirectAssignModal && activePlayer && (
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.85)',
+                        backdropFilter: 'blur(8px)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '1rem'
+                    }}>
+                        <div className="glass-panel" style={{
+                            maxWidth: '540px',
+                            width: '100%',
+                            padding: '2rem',
+                            background: '#0f172a',
+                            border: '2px solid #a855f7',
+                            borderRadius: '16px',
+                            boxShadow: '0 20px 50px rgba(168, 85, 247, 0.35)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                <h3 style={{ margin: 0, color: '#c084fc', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.25rem' }}>
+                                    ⚡ DIRECT PLAYER ASSIGNMENT
+                                </h3>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    Base Price: ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}
+                                </span>
+                            </div>
+
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+                                Assign active player <strong>{activePlayer.players.first_name} {activePlayer.players.last_name}</strong> (#{activePlayer.player_number || ''}) directly to a team.
+                            </p>
+
+                            {/* Price Mode Choice */}
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#fff', fontWeight: 'bold' }}>
+                                    Select Assignment Pricing:
+                                </label>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAssignPriceMode('free')}
+                                        style={{
+                                            padding: '0.8rem',
+                                            borderRadius: '10px',
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            border: assignPriceMode === 'free' ? '2px solid #a855f7' : '1px solid var(--border-color)',
+                                            background: assignPriceMode === 'free' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255,255,255,0.03)',
+                                            color: '#fff',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: '#c084fc', marginBottom: '0.2rem' }}>
+                                            🎁 FREE (₹0)
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            No purse deduction
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setAssignPriceMode('base_price')}
+                                        style={{
+                                            padding: '0.8rem',
+                                            borderRadius: '10px',
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            border: assignPriceMode === 'base_price' ? '2px solid var(--accent-gold)' : '1px solid var(--border-color)',
+                                            background: assignPriceMode === 'base_price' ? 'rgba(255, 215, 0, 0.15)' : 'rgba(255,255,255,0.03)',
+                                            color: '#fff',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: 'var(--accent-gold)', marginBottom: '0.2rem' }}>
+                                            💰 BASE PRICE
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')} from purse
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Team Selector */}
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#fff', fontWeight: 'bold' }}>
+                                    Select Receiving Team:
+                                </label>
+                                <select
+                                    value={selectedAssignTeam}
+                                    onChange={(e) => setSelectedAssignTeam(e.target.value)}
+                                    className="form-select"
+                                    style={{ width: '100%', padding: '0.75rem', background: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid #a855f7', borderRadius: '8px', fontSize: '0.95rem' }}
+                                >
+                                    <option value="">-- Choose Team --</option>
+                                    {displayTeams.map(t => {
+                                        const maxPlayers = activeAuction?.max_players || 11;
+                                        const maxBudget = activeAuction?.max_budget || 0;
+                                        const basePrice = activeAuction?.base_price || 0;
+                                        const sq = players.filter(p => p.team_id === t.id && p.id !== activePlayer.id);
+                                        const isFull = sq.length >= maxPlayers;
+                                        const spent = sq.reduce((acc, p) => acc + (p.sold_price || 0), 0);
+                                        const remainingPurse = maxBudget > 0 ? (maxBudget - spent) : Infinity;
+                                        const cannotAffordBase = assignPriceMode === 'base_price' && maxBudget > 0 && remainingPurse < basePrice;
+                                        const disabled = isFull || cannotAffordBase;
+
+                                        let label = `${t.team_name} (Squad: ${sq.length}/${maxPlayers})`;
+                                        if (maxBudget > 0) {
+                                            label += ` | Purse: ₹${remainingPurse.toLocaleString('en-IN')}`;
+                                        }
+                                        if (isFull) {
+                                            label += ' - [SQUAD FULL]';
+                                        } else if (cannotAffordBase) {
+                                            label += ' - [INSUFFICIENT PURSE]';
+                                        }
+
+                                        return (
+                                            <option key={t.id} value={t.id} disabled={disabled}>
+                                                {label}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowDirectAssignModal(false); setSelectedAssignTeam(''); }}
+                                    className="btn btn-outline"
+                                    style={{ padding: '0.6rem 1.2rem' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => finalizeDirectAssign(selectedAssignTeam, assignPriceMode)}
+                                    disabled={!selectedAssignTeam || actionLoading}
+                                    className="btn"
+                                    style={{
+                                        padding: '0.6rem 1.5rem',
+                                        background: assignPriceMode === 'base_price' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #a855f7, #7c3aed)',
+                                        color: assignPriceMode === 'base_price' ? '#000' : '#fff',
+                                        fontWeight: 'bold',
+                                        border: 'none',
+                                        borderRadius: '8px'
+                                    }}
+                                >
+                                    {assignPriceMode === 'base_price' ? `Confirm Base Price (₹${(activeAuction?.base_price || 0).toLocaleString('en-IN')})` : 'Confirm Free (₹0)'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal for Pending / Unsold Player Direct Assignment (Free ₹0 vs Base Price) */}
+                {assigningPendingPlayer && (
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.85)',
+                        backdropFilter: 'blur(8px)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '1rem'
+                    }}>
+                        <div className="glass-panel" style={{
+                            maxWidth: '540px',
+                            width: '100%',
+                            padding: '2rem',
+                            background: '#0f172a',
+                            border: '2px solid #a855f7',
+                            borderRadius: '16px',
+                            boxShadow: '0 20px 50px rgba(168, 85, 247, 0.35)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                <h3 style={{ margin: 0, color: '#c084fc', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.25rem' }}>
+                                    ⚡ DIRECT PLAYER ASSIGNMENT
+                                </h3>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    Base Price: ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}
+                                </span>
+                            </div>
+
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+                                Assign <strong>{assigningPendingPlayer.players.first_name} {assigningPendingPlayer.players.last_name}</strong> (#{assigningPendingPlayer.player_number || ''}) directly to a team without running an auction.
+                            </p>
+
+                            {/* Price Mode Choice */}
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#fff', fontWeight: 'bold' }}>
+                                    Select Assignment Pricing:
+                                </label>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAssignPriceMode('free')}
+                                        style={{
+                                            padding: '0.8rem',
+                                            borderRadius: '10px',
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            border: assignPriceMode === 'free' ? '2px solid #a855f7' : '1px solid var(--border-color)',
+                                            background: assignPriceMode === 'free' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255,255,255,0.03)',
+                                            color: '#fff',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: '#c084fc', marginBottom: '0.2rem' }}>
+                                            🎁 FREE (₹0)
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            No purse deduction
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setAssignPriceMode('base_price')}
+                                        style={{
+                                            padding: '0.8rem',
+                                            borderRadius: '10px',
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            border: assignPriceMode === 'base_price' ? '2px solid var(--accent-gold)' : '1px solid var(--border-color)',
+                                            background: assignPriceMode === 'base_price' ? 'rgba(255, 215, 0, 0.15)' : 'rgba(255,255,255,0.03)',
+                                            color: '#fff',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: 'var(--accent-gold)', marginBottom: '0.2rem' }}>
+                                            💰 BASE PRICE
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')} from purse
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Team Selector */}
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#fff', fontWeight: 'bold' }}>
+                                    Select Receiving Team:
+                                </label>
+                                <select
+                                    value={selectedAssignTeam}
+                                    onChange={(e) => setSelectedAssignTeam(e.target.value)}
+                                    className="form-select"
+                                    style={{ width: '100%', padding: '0.75rem', background: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid #a855f7', borderRadius: '8px', fontSize: '0.95rem' }}
+                                >
+                                    <option value="">-- Choose Team --</option>
+                                    {displayTeams.map(t => {
+                                        const maxPlayers = activeAuction?.max_players || 11;
+                                        const maxBudget = activeAuction?.max_budget || 0;
+                                        const basePrice = activeAuction?.base_price || 0;
+                                        const sq = players.filter(p => p.team_id === t.id);
+                                        const isFull = sq.length >= maxPlayers;
+                                        const spent = sq.reduce((acc, p) => acc + (p.sold_price || 0), 0);
+                                        const remainingPurse = maxBudget > 0 ? (maxBudget - spent) : Infinity;
+                                        const cannotAffordBase = assignPriceMode === 'base_price' && maxBudget > 0 && remainingPurse < basePrice;
+                                        const disabled = isFull || cannotAffordBase;
+
+                                        let label = `${t.team_name} (Squad: ${sq.length}/${maxPlayers})`;
+                                        if (maxBudget > 0) {
+                                            label += ` | Purse: ₹${remainingPurse.toLocaleString('en-IN')}`;
+                                        }
+                                        if (isFull) {
+                                            label += ' - [SQUAD FULL]';
+                                        } else if (cannotAffordBase) {
+                                            label += ' - [INSUFFICIENT PURSE]';
+                                        }
+
+                                        return (
+                                            <option key={t.id} value={t.id} disabled={disabled}>
+                                                {label}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => { setAssigningPendingPlayer(null); setSelectedAssignTeam(''); }}
+                                    className="btn btn-outline"
+                                    style={{ padding: '0.6rem 1.2rem' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => assignPendingPlayerDirect(assigningPendingPlayer, selectedAssignTeam, assignPriceMode)}
+                                    disabled={!selectedAssignTeam || actionLoading}
+                                    className="btn"
+                                    style={{
+                                        padding: '0.6rem 1.5rem',
+                                        background: assignPriceMode === 'base_price' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #a855f7, #7c3aed)',
+                                        color: assignPriceMode === 'base_price' ? '#000' : '#fff',
+                                        fontWeight: 'bold',
+                                        border: 'none',
+                                        borderRadius: '8px'
+                                    }}
+                                >
+                                    {assignPriceMode === 'base_price' ? `Confirm Base Price (₹${(activeAuction?.base_price || 0).toLocaleString('en-IN')})` : 'Confirm Free (₹0)'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </main>
