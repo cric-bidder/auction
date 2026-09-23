@@ -4,6 +4,14 @@ import { supabase } from '../services/supabase';
 import { getOptimizedImageUrl } from '../services/cloudinary';
 import IndianCurrencyDisplay from '../components/IndianCurrencyDisplay';
 import { Trophy, Users, Award, Shield, Sparkles, Flame, RefreshCw } from 'lucide-react';
+import { getProjectorTheme } from '../utils/projectorThemes';
+import ProjectorThemeSelector from '../components/ProjectorThemeSelector';
+import {
+  StadiumFloodlights,
+  ThemeTextureOverlay,
+  BidAnimationEngine,
+  SoldCelebrationStumps
+} from '../components/CricketAnimations';
 
 const getTeamInitials = (name) => {
   if (!name) return '';
@@ -22,6 +30,18 @@ const getPlayerInitials = (p) => {
 const YouTubeStreamProjectorPage = () => {
     const [searchParams] = useSearchParams();
     const auctionCode = searchParams.get('code') || localStorage.getItem('cap_admin_selected_auction_code');
+
+    // Projector Theme & Cricket Animation States
+    const [currentTheme, setCurrentTheme] = useState(() => {
+        return getProjectorTheme(localStorage.getItem('projector_theme'));
+    });
+    const [bidVariety, setBidVariety] = useState(() => {
+        return localStorage.getItem('projector_bid_anim') || 'random';
+    });
+    const [soldVariety, setSoldVariety] = useState(() => {
+        return localStorage.getItem('projector_sold_anim') || 'random';
+    });
+    const [bidStrikeTrigger, setBidStrikeTrigger] = useState(null);
 
     const [loading, setLoading] = useState(true);
     const [activeAuction, setActiveAuction] = useState(null);
@@ -98,6 +118,9 @@ const YouTubeStreamProjectorPage = () => {
                 (payload) => {
                     if (payload.eventType === 'UPDATE') {
                         const updated = payload.new;
+                        if (updated.auction_status === 'active') {
+                            setBidStrikeTrigger(Date.now());
+                        }
                         if (updated.auction_status === 'sold' && !processedEvents.current.has(`${updated.id}-sold`)) {
                             processedEvents.current.add(`${updated.id}-sold`);
                             // Fetch full sold player details
@@ -211,19 +234,53 @@ const YouTubeStreamProjectorPage = () => {
     const unsoldPlayersList = approvedPlayers.filter(p => p.auction_status === 'unsold');
     const highestBuy = soldPlayersList.reduce((max, p) => (p.sold_price || 0) > max ? (p.sold_price || 0) : max, 0);
 
+    const triggerTestSold = () => {
+        const dummyPlayer = activePlayer || {
+            players: { first_name: 'Rohit', last_name: 'Sharma', player_role: 'Batsman', photo_url: null },
+            sold_price: 15000000,
+            team_id: teams[0]?.id
+        };
+        setLastSoldPlayer(dummyPlayer);
+        setShowSoldOverlay(true);
+        setTimeout(() => {
+            setShowSoldOverlay(false);
+        }, 3500);
+    };
+
     return (
         <div style={{
             height: '100vh',
             maxHeight: '100vh',
-            backgroundColor: '#020617',
+            background: currentTheme?.bgGradient || '#020617',
             color: '#f8fafc',
             fontFamily: "'Inter', sans-serif",
             display: 'flex',
             flexDirection: 'column',
-            justify: 'space-between',
+            justifyContent: 'space-between',
             position: 'relative',
             overflow: 'hidden'
         }}>
+            {/* Theme Texture (Hex, Turf, Embers) */}
+            <ThemeTextureOverlay theme={currentTheme} />
+
+            {/* Ambient Dynamic Floodlights */}
+            <StadiumFloodlights theme={currentTheme} />
+
+            {/* Dynamic Bid Animation Engine */}
+            <BidAnimationEngine triggerKey={bidStrikeTrigger} theme={currentTheme} variety={bidVariety} />
+
+            {/* Projector Theme Selector Floating Drawer */}
+            <ProjectorThemeSelector
+                currentTheme={currentTheme}
+                onSelectTheme={setCurrentTheme}
+                bidVariety={bidVariety}
+                onSelectBidVariety={setBidVariety}
+                soldVariety={soldVariety}
+                onSelectSoldVariety={setSoldVariety}
+                onTriggerBidStrike={() => setBidStrikeTrigger(Date.now())}
+                onTriggerSoldTest={triggerTestSold}
+            />
+
             {/* Background Ambient Spotlight Glow */}
             <div style={{
                 position: 'absolute',
@@ -231,7 +288,7 @@ const YouTubeStreamProjectorPage = () => {
                 left: '20%',
                 width: '600px',
                 height: '600px',
-                background: 'radial-gradient(circle, rgba(255,215,0,0.08) 0%, rgba(0,0,0,0) 70%)',
+                background: `radial-gradient(circle, ${currentTheme?.accentGlow || 'rgba(255,215,0,0.08)'} 0%, rgba(0,0,0,0) 70%)`,
                 pointerEvents: 'none'
             }} />
             <div style={{
@@ -689,25 +746,26 @@ const YouTubeStreamProjectorPage = () => {
                 <div style={{
                     position: 'fixed',
                     inset: 0,
-                    backgroundColor: 'rgba(2,6,23,0.92)',
+                    backgroundColor: 'rgba(2,6,23,0.94)',
                     display: 'flex',
                     alignItems: 'center',
-                    justify: 'center',
+                    justifyContent: 'center',
                     zIndex: 100,
                     animation: 'fadeIn 0.4s ease'
                 }}>
                     <div style={{
-                        background: 'linear-gradient(135deg, rgba(15,23,42,0.98), rgba(2,6,23,0.99))',
-                        border: '3px solid var(--accent-green)',
+                        background: currentTheme?.soldBanner || 'linear-gradient(135deg, rgba(15,23,42,0.98), rgba(2,6,23,0.99))',
+                        border: `3px solid ${currentTheme?.soldBorder || 'var(--accent-green)'}`,
                         borderRadius: '24px',
-                        padding: '3rem 4rem',
+                        padding: '2.5rem 3.5rem',
                         textAlign: 'center',
-                        boxShadow: '0 0 60px rgba(57,255,20,0.4)',
-                        maxWidth: '650px',
+                        boxShadow: `0 0 70px ${currentTheme?.soldGlow || 'rgba(57,255,20,0.4)'}`,
+                        maxWidth: '680px',
                         width: '90%'
                     }}>
-                        <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>🔨 HAMMER DOWN!</div>
-                        <h1 style={{ fontSize: '2.5rem', color: 'var(--accent-green)', margin: '0 0 1.5rem', fontFamily: 'var(--font-heading)' }}>
+                        <SoldCelebrationStumps theme={currentTheme} variety={soldVariety} />
+                        <div style={{ fontSize: '1.8rem', marginBottom: '0.3rem', letterSpacing: '2px', textTransform: 'uppercase', color: '#fff' }}>🔨 HAMMER DOWN!</div>
+                        <h1 style={{ fontSize: '2.8rem', color: currentTheme?.accentPrimary || 'var(--accent-green)', margin: '0 0 1.2rem', fontFamily: 'var(--font-heading)', textShadow: `0 0 20px ${currentTheme?.soldGlow || 'transparent'}` }}>
                             SOLD!
                         </h1>
 
@@ -716,7 +774,7 @@ const YouTubeStreamProjectorPage = () => {
                                 <img
                                     src={getOptimizedImageUrl(lastSoldPlayer.players.photo_url, 300)}
                                     alt="Player"
-                                    style={{ width: 110, height: 130, objectFit: 'contain', borderRadius: '12px', border: '2px solid var(--accent-green)' }}
+                                    style={{ width: 110, height: 130, objectFit: 'contain', borderRadius: '12px', border: `2px solid ${currentTheme?.accentPrimary || 'var(--accent-green)'}` }}
                                 />
                             )}
                             <div style={{ textAlign: 'left' }}>

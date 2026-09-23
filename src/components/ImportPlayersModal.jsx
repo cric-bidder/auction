@@ -369,33 +369,63 @@ const ImportPlayersModal = ({ auction, existingPlayers = [], isOpen, onClose, on
                   flexWrap: 'wrap'
                 }}
               >
-                <div>
+                <div style={{ flex: '1 1 300px' }}>
                   <h5 style={{ margin: '0 0 0.25rem 0', color: 'var(--accent-gold)', fontSize: '0.95rem' }}>
                     Need the formatted Excel format?
                   </h5>
                   <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.4 }}>
-                    Download our pre-structured template with sample records for easy copy-pasting.
+                    {existingPlayers.length > 0
+                      ? `Download the template pre-populated with your ${existingPlayers.length} current player(s), or download a blank sample template.`
+                      : 'Download our pre-structured template with sample records for easy copy-pasting.'}
                   </p>
                 </div>
-                <button
-                  onClick={downloadPlayerImportTemplate}
-                  className="btn"
-                  style={{
-                    background: 'rgba(212, 175, 55, 0.15)',
-                    border: '1px solid var(--accent-gold)',
-                    color: 'var(--accent-gold)',
-                    padding: '0.5rem 1.2rem',
-                    fontSize: '0.85rem',
-                    borderRadius: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <span>⬇️</span>
-                  <span>Download Sample Template</span>
-                </button>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {existingPlayers.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => downloadPlayerImportTemplate(existingPlayers, auction?.auction_name)}
+                      className="btn"
+                      style={{
+                        background: 'rgba(212, 175, 55, 0.2)',
+                        border: '1px solid var(--accent-gold)',
+                        color: 'var(--accent-gold)',
+                        padding: '0.5rem 1rem',
+                        fontSize: '0.85rem',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        cursor: 'pointer',
+                        fontWeight: 600
+                      }}
+                      title={`Export ${existingPlayers.length} current players into Excel template`}
+                    >
+                      <span>👥</span>
+                      <span>Download with Current Players ({existingPlayers.length})</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => downloadPlayerImportTemplate([], '')}
+                    className="btn"
+                    style={{
+                      background: existingPlayers.length > 0 ? 'rgba(255, 255, 255, 0.05)' : 'rgba(212, 175, 55, 0.15)',
+                      border: existingPlayers.length > 0 ? '1px solid rgba(255, 255, 255, 0.2)' : '1px solid var(--accent-gold)',
+                      color: existingPlayers.length > 0 ? '#cbd5e1' : 'var(--accent-gold)',
+                      padding: '0.5rem 1rem',
+                      fontSize: '0.85rem',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      cursor: 'pointer'
+                    }}
+                    title="Download blank sample template with example players"
+                  >
+                    <span>⬇️</span>
+                    <span>{existingPlayers.length > 0 ? 'Download Blank/Sample' : 'Download Sample Template'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Guide notes */}

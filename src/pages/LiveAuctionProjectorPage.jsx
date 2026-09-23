@@ -5,15 +5,43 @@ import { Loader } from '../components/Loader';
 import { getOptimizedImageUrl } from '../services/cloudinary';
 import IndianCurrencyDisplay from '../components/IndianCurrencyDisplay';
 import { formatIndianCurrencyWords } from '../utils/currencyUtils';
+import { getProjectorTheme } from '../utils/projectorThemes';
+import ProjectorThemeSelector from '../components/ProjectorThemeSelector';
+import {
+  StadiumFloodlights,
+  ThemeTextureOverlay,
+  BidAnimationEngine,
+  SoldCelebrationStumps,
+  UnsoldAnimationEngine
+} from '../components/CricketAnimations';
 
 const LiveAuctionProjectorPage = () => {
     const [searchParams] = useSearchParams();
     const auctionCode = searchParams.get('code');
     const [allAuctions, setAllAuctions] = useState([]);
 
+    // Theme and Cricket Animation Variety States
+    const [currentTheme, setCurrentTheme] = useState(() => {
+        return getProjectorTheme(localStorage.getItem('projector_theme'));
+    });
+    const [layoutView, setLayoutView] = useState(() => {
+        return localStorage.getItem('projector_layout_view') || 'classic_split';
+    });
+    const [bidVariety, setBidVariety] = useState(() => {
+        return localStorage.getItem('projector_bid_anim') || 'random';
+    });
+    const [soldVariety, setSoldVariety] = useState(() => {
+        return localStorage.getItem('projector_sold_anim') || 'random';
+    });
+    const [unsoldVariety, setUnsoldVariety] = useState(() => {
+        return localStorage.getItem('projector_unsold_anim') || 'random';
+    });
+    const [bidStrikeTrigger, setBidStrikeTrigger] = useState(null);
+
     const [loading, setLoading] = useState(true);
     const [activeAuction, setActiveAuction] = useState(null);
     const [activePlayer, setActivePlayer] = useState(null);
+    const [allAuctionPlayers, setAllAuctionPlayers] = useState([]);
     const [teams, setTeams] = useState([]);
     const [sponsors, setSponsors] = useState([]);
     const [showSoldOverlay, setShowSoldOverlay] = useState(false);
@@ -49,8 +77,8 @@ const LiveAuctionProjectorPage = () => {
         const maxRolls = 22;
         spinTimerRef.current = setInterval(() => {
             count++;
-            const randomFakeNum = Math.floor(Math.random() * 99) + 1;
-            setTickerNumber(`#${randomFakeNum}`);
+            const randomNum = Math.floor(Math.random() * 999) + 1;
+            setTickerNumber(`#${randomNum}`);
 
             if (count >= maxRolls) {
                 clearInterval(spinTimerRef.current);
@@ -98,26 +126,24 @@ const LiveAuctionProjectorPage = () => {
                 setActiveAuction(null);
                 setTeams([]);
                 setActivePlayer(null);
+                setAllAuctionPlayers([]);
                 return;
             }
 
             setActiveAuction(auctionData);
 
             if (auctionData) {
-                if (teams.length === 0) {
-                    const { data: tData } = await supabase.from('auction_teams').select('*').eq('auction_id', auctionData.id);
-                    setTeams(tData || []);
-                }
+                const { data: tData } = await supabase.from('auction_teams').select('*').eq('auction_id', auctionData.id);
+                setTeams(tData || []);
 
                 const { data: apData } = await supabase
                     .from('auction_players')
                     .select('*, players(*)')
-                    .eq('auction_id', auctionData.id)
-                    .eq('auction_status', 'active')
-                    .limit(1)
-                    .maybeSingle();
+                    .eq('auction_id', auctionData.id);
 
-                setActivePlayer(apData || null);
+                setAllAuctionPlayers(apData || []);
+                const currentActive = (apData || []).find(p => p.auction_status === 'active');
+                setActivePlayer(currentActive || null);
 
                 // Fetch active sponsors (Only once on initial load, or if forced via clicking)
                 if (!sponsorsLoadedRef.current || forceSponsors) {
@@ -162,6 +188,13 @@ const LiveAuctionProjectorPage = () => {
 
         if (data) {
             setLastSoldPlayer(data);
+            setAllAuctionPlayers(prev => {
+                const exists = prev.some(p => p.id === data.id);
+                if (exists) {
+                    return prev.map(p => p.id === data.id ? data : p);
+                }
+                return [...prev, data];
+            });
             setShowSoldOverlay(true);
             setTimeout(() => {
                 setShowSoldOverlay(false);
@@ -187,6 +220,13 @@ const LiveAuctionProjectorPage = () => {
 
         if (data) {
             setLastUnsoldPlayer(data);
+            setAllAuctionPlayers(prev => {
+                const exists = prev.some(p => p.id === data.id);
+                if (exists) {
+                    return prev.map(p => p.id === data.id ? data : p);
+                }
+                return [...prev, data];
+            });
             setShowUnsoldOverlay(true);
             setTimeout(() => {
                 setShowUnsoldOverlay(false);
@@ -233,6 +273,9 @@ const LiveAuctionProjectorPage = () => {
                         updatedPlayer.auction_status === 'active' &&
                         oldPlayer && oldPlayer.auction_status === 'active'
                     ) {
+                        if (updatedPlayer.current_bid_price !== oldPlayer.current_bid_price) {
+                            setBidStrikeTrigger(Date.now());
+                        }
                         // Update active player's bid details locally without fetching everything
                         setActivePlayer(prev => {
                             if (prev && prev.id === updatedPlayer.id) {
@@ -805,9 +848,30 @@ const LiveAuctionProjectorPage = () => {
     //             }, 8000);
     //         }
     //     };
-    //     window.addEventListener('keydown', handleKeyDown);
-    //     return () => window.removeEventListener('keydown', handleKeyDown);
-    // }, [teams]);
+    const triggerTestSold = () => {
+        const dummyPlayer = activePlayer || {
+            players: { first_name: 'Rohit', last_name: 'Sharma', player_role: 'Batsman', photo_url: null },
+            sold_price: 15000000,
+            team_id: teams[0]?.id
+        };
+        setLastSoldPlayer(dummyPlayer);
+        setShowSoldOverlay(true);
+        setTimeout(() => {
+            setShowSoldOverlay(false);
+        }, 3500);
+    };
+
+    const triggerTestUnsold = () => {
+        const dummyPlayer = activePlayer || {
+            players: { first_name: 'Player', last_name: 'Name', player_role: 'All Rounder', photo_url: null },
+            base_price: 200000
+        };
+        setLastUnsoldPlayer(dummyPlayer);
+        setShowUnsoldOverlay(true);
+        setTimeout(() => {
+            setShowUnsoldOverlay(false);
+        }, 3500);
+    };
 
     if (loading) return <Loader message="CALIBRATING PROJECTOR..." />;
 
@@ -818,29 +882,67 @@ const LiveAuctionProjectorPage = () => {
         ? teams.find(t => t.id === lastSoldPlayer.team_id)
         : null;
 
+    const getTeamRemainingPurse = (team) => {
+        if (!team) return 0;
+        const maxBudget = activeAuction?.max_budget || 0;
+        const spent = allAuctionPlayers
+            .filter(p => p.team_id === team.id && (p.auction_status === 'sold' || Number(p.sold_price) > 0))
+            .reduce((sum, p) => sum + (Number(p.sold_price) || 0), 0);
+        if (maxBudget > 0) return Math.max(0, maxBudget - spent);
+        if (team.team_budget) return Math.max(0, Number(team.team_budget) - spent);
+        return 0;
+    };
+
     return (
         <div style={{
-            backgroundColor: '#050a10',
+            background: currentTheme.bgGradient || '#050a10',
+            backgroundColor: currentTheme.bgCanvas || '#050a10',
             minHeight: '100vh',
             color: '#fff',
             position: 'relative',
             overflow: 'hidden',
             padding: 'clamp(12px, 2vw, 32px)',
             boxSizing: 'border-box',
+            transition: 'background 0.4s ease'
         }}>
+            {/* Theme Specific Visual Texture (Hex Grid, Embers, Turf) */}
+            <ThemeTextureOverlay theme={currentTheme} />
+
+            {/* Stadium Ambient Floodlights */}
+            <StadiumFloodlights theme={currentTheme} />
+
+            {/* Dynamic Bid Animation Engine (Ball Comet, Sixer Flash, Gavel Slam, Lightning) */}
+            <BidAnimationEngine triggerKey={bidStrikeTrigger} theme={currentTheme} variety={bidVariety} />
+
+            {/* Floating Projector Broadcast Hub (Themes, Views & Animation Varieties) */}
+            <ProjectorThemeSelector
+                currentTheme={currentTheme}
+                onSelectTheme={setCurrentTheme}
+                layoutView={layoutView}
+                onSelectLayoutView={setLayoutView}
+                bidVariety={bidVariety}
+                onSelectBidVariety={setBidVariety}
+                soldVariety={soldVariety}
+                onSelectSoldVariety={setSoldVariety}
+                unsoldVariety={unsoldVariety}
+                onSelectUnsoldVariety={setUnsoldVariety}
+                onTriggerBidStrike={() => setBidStrikeTrigger(Date.now())}
+                onTriggerSoldTest={triggerTestSold}
+                onTriggerUnsoldTest={triggerTestUnsold}
+            />
 
             {/* Background Glows */}
             <div style={{
                 position: 'absolute', top: '-20%', left: '-10%', borderRadius: '50%',
                 zIndex: 0, pointerEvents: 'none',
                 width: 'clamp(300px, 50vw, 600px)', height: 'clamp(300px, 50vw, 600px)',
-                background: 'radial-gradient(circle, rgba(255,215,0,0.05) 0%, transparent 70%)',
+                background: `radial-gradient(circle, ${currentTheme.glowColor || 'rgba(255,215,0,0.05)'} 0%, transparent 70%)`,
             }} />
             <div style={{
                 position: 'absolute', bottom: '-20%', right: '-10%', borderRadius: '50%',
                 zIndex: 0, pointerEvents: 'none',
                 width: 'clamp(400px, 60vw, 800px)', height: 'clamp(400px, 60vw, 800px)',
-                background: 'radial-gradient(circle, rgba(57,255,20,0.05) 0%, transparent 70%)',
+                background: `radial-gradient(circle, ${currentTheme.spotlightColor || 'rgba(57,255,20,0.05)'} 0%, transparent 70%)`,
             }} />
 
             <div style={{
@@ -1098,249 +1200,940 @@ const LiveAuctionProjectorPage = () => {
                         </p>
                     </div>
                 ) : (
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                        gap: isMobile ? '20px' : 'clamp(20px, 5vw, 60px)',
-                        flex: 1,
-                        alignItems: isMobile ? 'start' : 'center',
-                    }}>
+                    /* DYNAMIC PROJECTOR SCREEN VIEWS */
+                    layoutView === 'center_spotlight' ? (
+                        /* ================= VIEW 2: CENTER SPOTLIGHT ================= */
+                        <div style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            flex: 1, width: '100%', maxWidth: '1400px', margin: '0 auto', gap: 'clamp(12px, 2vh, 24px)'
+                        }}>
+                            {/* Player Name & Role Header */}
+                            <div style={{ textAlign: 'center' }}>
+                                <h1 style={{
+                                    fontSize: isMobile ? '1.8rem' : 'clamp(2.2rem, 4.5vw, 4.2rem)',
+                                    margin: '0 0 6px 0',
+                                    color: '#fff',
+                                    fontWeight: 900,
+                                    letterSpacing: '2px',
+                                    textShadow: `0 0 25px ${currentTheme?.glowColor || 'rgba(255,215,0,0.5)'}`
+                                }}>
+                                    {activePlayer?.players?.first_name} {activePlayer?.players?.last_name}
+                                </h1>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                    {activePlayer?.player_number != null && (
+                                        <span style={{ background: currentTheme?.accentPrimary || '#ffd700', color: '#000', padding: '3px 12px', borderRadius: '20px', fontWeight: 900, fontSize: '0.9rem' }}>
+                                            #{activePlayer.player_number}
+                                        </span>
+                                    )}
+                                    <span style={{ background: 'rgba(255,255,255,0.1)', padding: '3px 14px', borderRadius: '20px', fontSize: '0.9rem', color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 700 }}>
+                                        {activePlayer?.players?.player_role?.toUpperCase()}
+                                    </span>
+                                    <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem' }}>
+                                        Base: ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}
+                                    </span>
+                                </div>
+                            </div>
 
-                        {/* Player Photo Column */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <div style={{ position: 'relative', display: 'inline-block' }}>
-                                {/* Player Number Badge */}
-                                {activePlayer?.player_number != null && (
-                                    <div style={{
-                                        position: 'absolute',
-                                        top: '12px',
-                                        left: '12px',
-                                        background: 'var(--accent-gold)',
-                                        color: '#000',
-                                        padding: 'clamp(4px, 0.8vh, 8px) clamp(8px, 1.5vw, 16px)',
-                                        borderRadius: 'clamp(4px, 0.8vw, 8px)',
-                                        fontSize: 'clamp(0.8rem, 1.5vw, 1.4rem)',
-                                        fontWeight: 900,
-                                        zIndex: 10,
-                                        boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-                                        border: '2px solid rgba(0,0,0,0.2)',
-                                    }}>
-                                        #{activePlayer.player_number}
+                            {/* Center Showcase: Photo & Huge Bid */}
+                            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: 'clamp(20px, 4vw, 50px)', width: '100%' }}>
+                                {/* Center Photo */}
+                                <div style={{ position: 'relative' }}>
+                                    {(activePlayer?.players?.photo_url && !imageError) ? (
+                                        <img
+                                            src={getOptimizedImageUrl(activePlayer.players.photo_url, 600)}
+                                            alt="Player"
+                                            onError={() => setImageError(true)}
+                                            style={{
+                                                width: isMobile ? '240px' : 'clamp(260px, 22vw, 360px)',
+                                                height: isMobile ? '240px' : 'clamp(260px, 32vh, 420px)',
+                                                objectFit: 'contain',
+                                                backgroundColor: '#090d16',
+                                                borderRadius: '24px',
+                                                border: `4px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                                boxShadow: `0 0 60px ${currentTheme?.glowColor || 'rgba(255,215,0,0.3)'}`,
+                                            }}
+                                        />
+                                    ) : (
+                                        <div style={{
+                                            width: isMobile ? '240px' : 'clamp(260px, 22vw, 360px)',
+                                            height: isMobile ? '240px' : 'clamp(260px, 32vh, 420px)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            background: 'rgba(255,255,255,0.05)',
+                                            color: currentTheme?.accentPrimary || '#ffd700',
+                                            fontSize: '6rem', fontWeight: 900,
+                                            borderRadius: '24px',
+                                            border: `4px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                        }}>
+                                            {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Center Big Bid Panel */}
+                                <div style={{
+                                    background: currentTheme?.cardBg || 'rgba(15,23,42,0.85)',
+                                    border: `2px solid ${currentTheme?.cardBorder || 'rgba(255,215,0,0.3)'}`,
+                                    borderRadius: '24px',
+                                    padding: 'clamp(16px, 2.5vh, 28px) clamp(20px, 3vw, 40px)',
+                                    minWidth: isMobile ? '90%' : '380px',
+                                    textAlign: 'center',
+                                    boxShadow: `0 20px 50px rgba(0,0,0,0.6)`
+                                }}>
+                                    <div style={{ fontSize: '0.9rem', color: currentTheme?.accentPrimary || '#ffd700', textTransform: 'uppercase', letterSpacing: '3px', fontWeight: 800, marginBottom: '8px' }}>
+                                        Current Highest Bid
                                     </div>
-                                )}
+                                    <div style={{ margin: '8px 0 16px' }}>
+                                        <IndianCurrencyDisplay
+                                            amount={activePlayer?.current_bid_price || activeAuction?.base_price || 0}
+                                            size={isMobile ? 'xl' : '2xl'}
+                                            color={winningTeam ? '#39ff14' : '#fff'}
+                                            align="center"
+                                        />
+                                    </div>
+                                    {winningTeam ? (
+                                        <div style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '10px',
+                                            background: 'rgba(57,255,20,0.12)', border: '1.5px solid #39ff14',
+                                            padding: '8px 20px', borderRadius: '50px',
+                                        }}>
+                                            {winningTeam.logo_url && (
+                                                <img src={winningTeam.logo_url} alt="Team" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
+                                            )}
+                                            <span style={{ fontWeight: 800, color: '#39ff14', fontSize: '1.1rem' }}>{winningTeam.team_name}</span>
+                                        </div>
+                                    ) : (
+                                        <div style={{ color: '#ff4444', fontWeight: 800, fontSize: '1rem', letterSpacing: '2px', animation: 'flash 1s infinite' }}>
+                                            OPENING BID WAITING...
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Bottom Participating Teams Strip */}
+                            {teams && teams.length > 0 && (
+                                <div style={{
+                                    display: 'flex', gap: '10px', overflowX: 'auto', width: '100%',
+                                    padding: '8px 0', justifyContent: 'center', flexWrap: 'wrap',
+                                    marginTop: 'auto'
+                                }}>
+                                    {teams.map(t => {
+                                        const isLeading = winningTeam?.id === t.id;
+                                        return (
+                                            <div
+                                                key={t.id}
+                                                style={{
+                                                    background: isLeading ? 'rgba(57,255,20,0.18)' : 'rgba(255,255,255,0.04)',
+                                                    border: isLeading ? '2px solid #39ff14' : '1px solid rgba(255,255,255,0.1)',
+                                                    borderRadius: '12px', padding: '6px 12px',
+                                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                                    boxShadow: isLeading ? '0 0 20px rgba(57,255,20,0.3)' : 'none'
+                                                }}
+                                            >
+                                                {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+                                                <span style={{ fontWeight: 700, fontSize: '0.8rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</span>
+                                                <span style={{ fontSize: '0.74rem', color: '#ffd700', fontWeight: 600 }}>₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    ) : layoutView === 'tactical_monitor' ? (
+                        /* ================= VIEW 3: TACTICAL MONITOR ================= */
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '16px' }}>
+                            {/* Top Active Player HUD Banner */}
+                            <div style={{
+                                background: currentTheme?.cardBg || 'rgba(15,23,42,0.9)',
+                                border: `2px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                borderRadius: '16px',
+                                padding: '12px 24px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: '16px',
+                                boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    {(activePlayer?.players?.photo_url && !imageError) ? (
+                                        <img
+                                            src={getOptimizedImageUrl(activePlayer.players.photo_url, 200)}
+                                            alt=""
+                                            onError={() => setImageError(true)}
+                                            style={{ width: '60px', height: '60px', borderRadius: '12px', objectFit: 'cover', border: `2px solid ${currentTheme?.accentPrimary || '#ffd700'}` }}
+                                        />
+                                    ) : (
+                                        <div style={{ width: '60px', height: '60px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                                            {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
+                                        </div>
+                                    )}
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            {activePlayer?.player_number != null && (
+                                                <span style={{ background: currentTheme?.accentPrimary || '#ffd700', color: '#000', padding: '2px 8px', borderRadius: '4px', fontWeight: 900, fontSize: '0.75rem' }}>
+                                                    #{activePlayer.player_number}
+                                                </span>
+                                            )}
+                                            <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#fff' }}>
+                                                {activePlayer?.players?.first_name} {activePlayer?.players?.last_name}
+                                            </h2>
+                                        </div>
+                                        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                                            {activePlayer?.players?.player_role} • Bat: {activePlayer?.players?.batting_style || 'N/A'} • Bowl: {activePlayer?.players?.bowling_style || 'N/A'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>Base Price</span>
+                                        <span style={{ fontSize: '1rem', fontWeight: 700, color: '#fff' }}>₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}</span>
+                                    </div>
+                                    <div style={{ background: 'rgba(0,0,0,0.4)', padding: '8px 18px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', textAlign: 'right' }}>
+                                        <span style={{ fontSize: '0.7rem', color: currentTheme?.accentPrimary || '#ffd700', textTransform: 'uppercase', display: 'block', fontWeight: 800 }}>Current Bid</span>
+                                        <span style={{ fontSize: '1.5rem', fontWeight: 900, color: winningTeam ? '#39ff14' : '#fff' }}>
+                                            ₹{(activePlayer?.current_bid_price || activeAuction?.base_price || 0).toLocaleString('en-IN')}
+                                        </span>
+                                    </div>
+                                    {winningTeam && (
+                                        <div style={{ background: 'rgba(57,255,20,0.15)', border: '1px solid #39ff14', padding: '6px 14px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            {winningTeam.logo_url && <img src={winningTeam.logo_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />}
+                                            <span style={{ fontWeight: 800, color: '#39ff14', fontSize: '0.9rem' }}>{winningTeam.team_name}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Main Tactical Grid of All Teams */}
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                                gap: '14px',
+                                flex: 1,
+                                overflowY: 'auto'
+                            }}>
+                                {teams.map(t => {
+                                    const isLeading = winningTeam?.id === t.id;
+                                    return (
+                                        <div
+                                            key={t.id}
+                                            style={{
+                                                background: isLeading ? 'rgba(57,255,20,0.12)' : 'rgba(255,255,255,0.03)',
+                                                border: isLeading ? '2px solid #39ff14' : '1px solid rgba(255,255,255,0.08)',
+                                                borderRadius: '14px',
+                                                padding: '16px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                justifyContent: 'space-between',
+                                                boxShadow: isLeading ? '0 0 25px rgba(57,255,20,0.3)' : 'none'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                {t.logo_url ? (
+                                                    <img src={t.logo_url} alt="" style={{ width: 44, height: 44, objectFit: 'contain' }} />
+                                                ) : (
+                                                    <div style={{ width: 44, height: 44, borderRadius: '8px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                                                        {t.team_name?.slice(0, 2).toUpperCase()}
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>{t.team_name}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: isLeading ? '#39ff14' : '#94a3b8' }}>
+                                                        {isLeading ? '⚡ LEADING BIDDER' : 'Participating Team'}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div>
+                                                    <span style={{ fontSize: '0.68rem', color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>Remaining Purse</span>
+                                                    <span style={{ fontSize: '1.2rem', fontWeight: 900, color: currentTheme?.accentPrimary || '#ffd700' }}>
+                                                        ₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}
+                                                    </span>
+                                                </div>
+                                                {isLeading && (
+                                                    <span style={{ background: '#39ff14', color: '#000', padding: '2px 8px', borderRadius: '4px', fontWeight: 900, fontSize: '0.7rem' }}>
+                                                        ACTIVE
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : layoutView === 'cinematic_wide' ? (
+                        /* ================= VIEW 4: CINEMATIC WIDESCREEN ================= */
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: isMobile ? '1fr' : '30% 42% 28%',
+                            gap: '20px',
+                            flex: 1,
+                            alignItems: 'center'
+                        }}>
+                            {/* Col 1: Portrait */}
+                            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                <div style={{ position: 'relative' }}>
+                                    {(activePlayer?.players?.photo_url && !imageError) ? (
+                                        <img
+                                            src={getOptimizedImageUrl(activePlayer.players.photo_url, 600)}
+                                            alt=""
+                                            onError={() => setImageError(true)}
+                                            style={{
+                                                width: '100%', maxWidth: '320px', height: 'clamp(320px, 50vh, 520px)',
+                                                objectFit: 'contain', backgroundColor: '#090d16',
+                                                borderRadius: '20px', border: `3px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                                boxShadow: `0 0 50px ${currentTheme?.glowColor || 'rgba(255,215,0,0.25)'}`
+                                            }}
+                                        />
+                                    ) : (
+                                        <div style={{
+                                            width: '280px', height: '360px', borderRadius: '20px',
+                                            background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '5rem', fontWeight: 900, border: `3px solid ${currentTheme?.accentPrimary || '#ffd700'}`
+                                        }}>
+                                            {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
+                                        </div>
+                                    )}
+                                    <div style={{
+                                        position: 'absolute', bottom: '-10px', left: '50%', transform: 'translateX(-50%)',
+                                        background: currentTheme?.accentPrimary || '#ffd700', color: '#000',
+                                        padding: '4px 16px', borderRadius: '8px', fontWeight: 900, fontSize: '0.85rem'
+                                    }}>
+                                        {activePlayer?.players?.player_role?.toUpperCase()}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Col 2: Player Details & Giant Bid */}
+                            <div>
+                                <h1 style={{ fontSize: 'clamp(2rem, 3.5vw, 3.6rem)', margin: '0 0 10px 0', color: '#fff', fontWeight: 900 }}>
+                                    {activePlayer?.players?.first_name} {activePlayer?.players?.last_name}
+                                </h1>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                                    <span style={{ background: 'rgba(255,255,255,0.08)', padding: '4px 12px', borderRadius: '6px', fontSize: '0.85rem' }}>
+                                        🏏 Bat: {activePlayer?.players?.batting_style || 'N/A'}
+                                    </span>
+                                    <span style={{ background: 'rgba(255,255,255,0.08)', padding: '4px 12px', borderRadius: '6px', fontSize: '0.85rem' }}>
+                                        🎯 Bowl: {activePlayer?.players?.bowling_style || 'N/A'}
+                                    </span>
+                                    <span style={{ background: 'rgba(255,255,255,0.08)', padding: '4px 12px', borderRadius: '6px', fontSize: '0.85rem', color: currentTheme?.accentPrimary || '#ffd700' }}>
+                                        💰 Base: ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}
+                                    </span>
+                                </div>
+
+                                <div style={{
+                                    background: currentTheme?.cardBg || 'rgba(15,23,42,0.9)',
+                                    border: `2px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                    borderRadius: '18px',
+                                    padding: '20px',
+                                    boxShadow: '0 15px 40px rgba(0,0,0,0.5)'
+                                }}>
+                                    <div style={{ fontSize: '0.8rem', color: currentTheme?.accentPrimary || '#ffd700', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 800 }}>
+                                        Current Highest Bid
+                                    </div>
+                                    <div style={{ margin: '8px 0 12px' }}>
+                                        <IndianCurrencyDisplay
+                                            amount={activePlayer?.current_bid_price || activeAuction?.base_price || 0}
+                                            size="xl"
+                                            color={winningTeam ? '#39ff14' : '#fff'}
+                                            align="left"
+                                        />
+                                    </div>
+                                    {winningTeam ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(57,255,20,0.12)', border: '1px solid #39ff14', padding: '6px 14px', borderRadius: '8px' }}>
+                                            {winningTeam.logo_url && <img src={winningTeam.logo_url} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} />}
+                                            <span style={{ fontWeight: 800, color: '#39ff14' }}>{winningTeam.team_name}</span>
+                                        </div>
+                                    ) : (
+                                        <span style={{ color: '#ff4444', fontWeight: 800, animation: 'flash 1s infinite' }}>OPENING BID...</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Col 3: Right Dock Teams List */}
+                            <div style={{
+                                display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '520px', overflowY: 'auto',
+                                background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)'
+                            }}>
+                                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '1px', marginBottom: '4px' }}>
+                                    Franchise Purses
+                                </div>
+                                {teams.map(t => {
+                                    const isLeading = winningTeam?.id === t.id;
+                                    return (
+                                        <div
+                                            key={t.id}
+                                            style={{
+                                                background: isLeading ? 'rgba(57,255,20,0.15)' : 'rgba(255,255,255,0.03)',
+                                                border: isLeading ? '1.5px solid #39ff14' : '1px solid rgba(255,255,255,0.05)',
+                                                borderRadius: '8px', padding: '8px 10px',
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />}
+                                                <span style={{ fontWeight: 700, fontSize: '0.8rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</span>
+                                            </div>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: currentTheme?.accentPrimary || '#ffd700' }}>
+                                                ₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : layoutView === 'tv_broadcast_bar' ? (
+                        /* ================= VIEW 5: TV BROADCAST LOWER THIRDS ================= */
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', gap: '16px' }}>
+                            {/* Center Hero Player Showcase */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, position: 'relative' }}>
                                 {(activePlayer?.players?.photo_url && !imageError) ? (
                                     <img
-                                        src={getOptimizedImageUrl(activePlayer.players.photo_url, 600)}
-                                        alt="Player"
+                                        src={getOptimizedImageUrl(activePlayer.players.photo_url, 700)}
+                                        alt=""
                                         onError={() => setImageError(true)}
                                         style={{
-                                            width: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(320px, 28vw, 500px)',
-                                            height: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(420px, 68vh, 750px)',
-                                            maxWidth: '100%',
+                                            maxHeight: isMobile ? '280px' : 'clamp(300px, 48vh, 520px)',
+                                            maxWidth: '90%',
                                             objectFit: 'contain',
-                                            objectPosition: 'top center',
-                                            backgroundColor: '#090d16',
-                                            borderRadius: 'clamp(12px, 2vw, 30px)',
-                                            border: 'clamp(4px, 0.8vw, 8px) solid #ffd700',
-                                            boxShadow: '0 0 80px rgba(255,215,0,0.2)',
-                                            display: 'block',
+                                            filter: `drop-shadow(0 15px 40px ${currentTheme?.glowColor || 'rgba(0,0,0,0.8)'})`,
+                                            borderRadius: '20px'
                                         }}
                                     />
                                 ) : (
                                     <div style={{
-                                        width: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(320px, 28vw, 500px)',
-                                        height: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(420px, 68vh, 750px)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        background: 'linear-gradient(135deg, rgba(255,215,0,0.1), rgba(57,255,20,0.05))',
-                                        color: 'rgba(255,215,0,0.3)',
-                                        fontSize: isMobile ? 'clamp(4.5rem, 20vw, 10rem)' : 'clamp(7rem, 18vh, 20rem)',
-                                        fontWeight: 900,
-                                        borderRadius: 'clamp(12px, 2vw, 30px)',
-                                        border: 'clamp(4px, 0.8vw, 8px) solid #ffd700',
-                                        boxShadow: '0 0 80px rgba(255,215,0,0.2)',
+                                        width: '240px', height: '240px', borderRadius: '50%',
+                                        background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '5rem', fontWeight: 900, border: `3px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                        color: currentTheme?.accentPrimary || '#ffd700'
                                     }}>
                                         {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
                                     </div>
                                 )}
+                            </div>
+
+                            {/* TV Lower Third Bar */}
+                            <div style={{
+                                background: currentTheme?.cardBg || 'linear-gradient(90deg, rgba(15,23,42,0.96) 0%, rgba(2,6,23,0.98) 100%)',
+                                border: `2px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                borderRadius: '16px',
+                                padding: '14px 24px',
+                                display: 'grid',
+                                gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1.2fr 1fr',
+                                gap: '16px',
+                                alignItems: 'center',
+                                boxShadow: '0 20px 60px rgba(0,0,0,0.8)'
+                            }}>
+                                {/* Player Info */}
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {activePlayer?.player_number != null && (
+                                            <span style={{ background: currentTheme?.accentPrimary || '#ffd700', color: '#000', padding: '2px 8px', borderRadius: '4px', fontWeight: 900, fontSize: '0.8rem' }}>
+                                                #{activePlayer.player_number}
+                                            </span>
+                                        )}
+                                        <h2 style={{ margin: 0, fontSize: isMobile ? '1.2rem' : '1.8rem', fontWeight: 900, color: '#fff' }}>
+                                            {activePlayer?.players?.first_name} {activePlayer?.players?.last_name}
+                                        </h2>
+                                    </div>
+                                    <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '4px' }}>
+                                        <span style={{ color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 700 }}>{activePlayer?.players?.player_role}</span> • Bat: {activePlayer?.players?.batting_style || 'N/A'} • Bowl: {activePlayer?.players?.bowling_style || 'N/A'}
+                                    </div>
+                                </div>
+
+                                {/* Current Highest Bid Box */}
                                 <div style={{
-                                    position: 'absolute',
-                                    bottom: 'clamp(-10px, -1.5vh, -18px)',
-                                    left: '50%', transform: 'translateX(-50%)',
-                                    background: '#ffd700', color: '#000',
-                                    padding: 'clamp(4px, 1vh, 10px) clamp(12px, 2.5vw, 28px)',
-                                    borderRadius: 'clamp(6px, 1vw, 12px)',
-                                    fontSize: isMobile ? 'clamp(0.65rem, 3vw, 1rem)' : 'clamp(0.7rem, 1.5vw, 1.8rem)',
-                                    fontWeight: 900,
-                                    boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
-                                    whiteSpace: 'nowrap',
+                                    background: 'rgba(0,0,0,0.45)', padding: '10px 18px', borderRadius: '12px',
+                                    border: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                                 }}>
-                                    {activePlayer?.players?.player_role?.toUpperCase()}
+                                    <div>
+                                        <span style={{ fontSize: '0.68rem', color: currentTheme?.accentPrimary || '#ffd700', textTransform: 'uppercase', fontWeight: 800, display: 'block' }}>
+                                            CURRENT BID
+                                        </span>
+                                        <span style={{ fontSize: '1.6rem', fontWeight: 900, color: winningTeam ? '#39ff14' : '#fff' }}>
+                                            ₹{(activePlayer?.current_bid_price || activeAuction?.base_price || 0).toLocaleString('en-IN')}
+                                        </span>
+                                    </div>
+                                    {winningTeam && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(57,255,20,0.15)', border: '1px solid #39ff14', padding: '4px 10px', borderRadius: '6px' }}>
+                                            {winningTeam.logo_url && <img src={winningTeam.logo_url} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />}
+                                            <span style={{ fontWeight: 800, color: '#39ff14', fontSize: '0.8rem' }}>{winningTeam.team_name}</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Base Price */}
+                                <div style={{ textAlign: isMobile ? 'left' : 'right' }}>
+                                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>Base Price</span>
+                                    <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff' }}>
+                                        ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}
+                                    </span>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Bid Info Column */}
+                            {/* Franchise Purses Strip */}
+                            {teams && teams.length > 0 && (
+                                <div style={{
+                                    display: 'flex', gap: '8px', overflowX: 'auto', width: '100%',
+                                    padding: '4px 0', justifyContent: 'center', flexWrap: 'wrap'
+                                }}>
+                                    {teams.map(t => {
+                                        const isLeading = winningTeam?.id === t.id;
+                                        return (
+                                            <div
+                                                key={t.id}
+                                                style={{
+                                                    background: isLeading ? 'rgba(57,255,20,0.18)' : 'rgba(255,255,255,0.03)',
+                                                    border: isLeading ? '1.5px solid #39ff14' : '1px solid rgba(255,255,255,0.08)',
+                                                    borderRadius: '8px', padding: '4px 10px',
+                                                    display: 'flex', alignItems: 'center', gap: '6px'
+                                                }}
+                                            >
+                                                {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} />}
+                                                <span style={{ fontWeight: 700, fontSize: '0.75rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</span>
+                                                <span style={{ fontSize: '0.72rem', color: '#ffd700', fontWeight: 600 }}>₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    ) : layoutView === 'leaderboard_deck' ? (
+                        /* ================= VIEW 6: LEADERBOARD DECK ================= */
                         <div style={{
-                            display: 'flex', flexDirection: 'column', justifyContent: 'center',
-                            color: '#ffd700',
-                            paddingTop: 'clamp(10px, 1.5vh, 20px)',
+                            display: 'grid',
+                            gridTemplateColumns: isMobile ? '1fr' : '45% 55%',
+                            gap: '24px',
+                            flex: 1,
+                            alignItems: 'stretch'
                         }}>
-                            <h1 style={{
-                                fontSize: isMobile ? 'clamp(1.4rem, 6vw, 2.5rem)' : 'clamp(1.6rem, 4.5vw, 5rem)',
-                                margin: '0 0 clamp(4px, 1vh, 12px) 0',
-                                lineHeight: 1.2,
-                                textShadow: '0 8px 20px rgba(0,0,0,0.5)',
-                                wordBreak: 'break-word',
-                            }}>
-                                {activePlayer?.players?.first_name}{' '}
-                                <span>{activePlayer?.players?.last_name}</span>
-                            </h1>
+                            {/* Left: Player Focus & Big Bid Box */}
                             <div style={{
-                                fontSize: isMobile ? 'clamp(0.7rem, 3vw, 1rem)' : 'clamp(0.75rem, 1.5vw, 1.8rem)',
-                                color: 'rgba(255,255,255,0.7)',
-                                margin: '0 0 clamp(8px, 2vh, 20px) 0',
+                                background: currentTheme?.cardBg || 'rgba(15,23,42,0.85)',
+                                border: `2px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                borderRadius: '20px',
+                                padding: '24px',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: 'clamp(4px, 1vh, 8px)'
+                                justifyContent: 'space-between',
+                                boxShadow: '0 20px 50px rgba(0,0,0,0.6)'
                             }}>
-                                <div style={{ display: 'flex', gap: 'clamp(8px, 1.5vw, 20px)', flexWrap: 'wrap' }}>
-                                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Batting Style:</span>
-                                    <span style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>{activePlayer?.players?.batting_style || 'N/A'}</span>
-                                    <span style={{ opacity: 0.3 }}>|</span>
-                                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Bowling Style:</span>
-                                    <span style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>{activePlayer?.players?.bowling_style || 'N/A'}</span>
-                                </div>
-                                <div style={{ opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Base Price:</span> <span style={{ color: '#fff', fontWeight: 600 }}>₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}</span>
-                                </div>
-                            </div>
-
-                            <div style={{
-                                background: 'rgba(255,255,255,0.03)',
-                                border: '2px solid rgba(255,215,0,0.2)',
-                                padding: 'clamp(10px, 2vh, 20px)',
-                                borderRadius: 'clamp(12px, 2vw, 25px)',
-                                boxShadow: '0 15px 40px rgba(0,0,0,0.4)',
-                                overflow: 'hidden'
-                            }}>
-                                <div style={{
-                                    fontSize: isMobile ? 'clamp(0.6rem, 2.5vw, 0.9rem)' : 'clamp(0.7rem, 1.2vw, 1.4rem)',
-                                    color: '#ffd700', textTransform: 'uppercase',
-                                    letterSpacing: '4px',
-                                    marginBottom: 'clamp(4px, 0.5vh, 10px)',
-                                    fontWeight: 'bold',
-                                }}>
-                                    Current Bid
-                                </div>
-                                {(() => {
-                                    const bidVal = activePlayer?.current_bid_price || activeAuction?.base_price || 0;
-                                    return (
-                                        <div style={{ margin: '0 0 clamp(8px, 1.5vh, 20px) 0' }}>
-                                            <IndianCurrencyDisplay
-                                                amount={bidVal}
-                                                size={isMobile ? 'lg' : '2xl'}
-                                                color={winningTeam ? '#39ff14' : '#fff'}
-                                                subtextColor="rgba(255,215,0,0.9)"
-                                                align="left"
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                                        <div>
+                                            {activePlayer?.player_number != null && (
+                                                <span style={{ background: currentTheme?.accentPrimary || '#ffd700', color: '#000', padding: '3px 10px', borderRadius: '6px', fontWeight: 900, fontSize: '0.85rem' }}>
+                                                    #{activePlayer.player_number}
+                                                </span>
+                                            )}
+                                            <h1 style={{ margin: '8px 0 4px', fontSize: 'clamp(1.8rem, 3vw, 2.8rem)', color: '#fff', fontWeight: 900 }}>
+                                                {activePlayer?.players?.first_name} {activePlayer?.players?.last_name}
+                                            </h1>
+                                            <div style={{ color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 700, fontSize: '1rem' }}>
+                                                {activePlayer?.players?.player_role?.toUpperCase()}
+                                            </div>
+                                        </div>
+                                        {(activePlayer?.players?.photo_url && !imageError) ? (
+                                            <img
+                                                src={getOptimizedImageUrl(activePlayer.players.photo_url, 300)}
+                                                alt=""
+                                                onError={() => setImageError(true)}
+                                                style={{ width: '120px', height: '140px', objectFit: 'cover', borderRadius: '14px', border: `2px solid ${currentTheme?.accentPrimary || '#ffd700'}` }}
                                             />
-                                        </div>
-                                    );
-                                })()}
-
-                                {winningTeam ? (
-                                    <div style={{
-                                        display: 'flex', alignItems: 'center',
-                                        gap: 'clamp(8px, 1.5vw, 20px)',
-                                        padding: 'clamp(6px, 1.2vh, 12px)',
-                                        background: 'rgba(57,255,20,0.1)',
-                                        borderRadius: 'clamp(8px, 1vw, 15px)',
-                                        border: '1px solid #39ff14',
-                                        flexWrap: 'wrap',
-                                    }}>
-                                        {winningTeam.logo_url && (
-                                            <img src={winningTeam.logo_url} alt="Team" style={{
-                                                width: 'clamp(28px, 5vw, 70px)',
-                                                height: 'clamp(28px, 5vw, 70px)',
-                                                objectFit: 'contain', flexShrink: 0,
-                                            }} />
+                                        ) : (
+                                            <div style={{ width: '100px', height: '100px', borderRadius: '14px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', fontWeight: 900 }}>
+                                                {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
+                                            </div>
                                         )}
-                                        <div style={{
-                                            fontSize: isMobile ? 'clamp(0.9rem, 4vw, 1.4rem)' : 'clamp(1rem, 2.5vw, 2rem)',
-                                            fontWeight: 'bold', color: '#39ff14',
-                                        }}>
-                                            {winningTeam.team_name}
-                                        </div>
                                     </div>
-                                ) : (
-                                    <div style={{
-                                        fontSize: isMobile ? 'clamp(0.9rem, 4vw, 1.4rem)' : 'clamp(1rem, 2.5vw, 2rem)',
-                                        fontWeight: 'bold', color: '#ff4444',
-                                        animation: 'flash 1s infinite',
-                                    }}>
-                                        OPENING BID...
-                                    </div>
-                                )}
-                            </div>
 
-                            {/* {activePlayer?.current_bid_price >= 20000 && (
-                                <div style={{
-                                    marginTop: 'clamp(12px, 2vh, 24px)',
-                                    background: 'rgba(255, 255, 255, 0.03)',
-                                    border: '2px solid rgba(255, 215, 0, 0.4)',
-                                    padding: 'clamp(10px, 2vh, 20px)',
-                                    borderRadius: 'clamp(12px, 2vw, 20px)',
-                                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-                                    display: 'flex',
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 'clamp(10px, 2vw, 20px)',
-                                    animation: 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both, goldGlowPulse 2s infinite ease-in-out',
-                                    backdropFilter: 'blur(10px)',
-                                }}>
-                                    <div style={{
-                                        flex: 1,
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        justifyContent: 'center',
-                                    }}>
-                                        <div style={{
-                                            fontSize: isMobile ? 'clamp(0.9rem, 3.5vw, 1.3rem)' : 'clamp(1.1rem, 2vw, 1.8rem)',
-                                            fontWeight: 900,
-                                            color: '#ffd700',
-                                            textShadow: '0 0 12px rgba(255,215,0,0.5)',
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '1px',
-                                            marginBottom: '4px',
-                                        }}>
-                                            Sab Changa Si!
-                                        </div>
-                                        <div style={{
-                                            fontSize: isMobile ? 'clamp(0.7rem, 2.5vw, 0.95rem)' : 'clamp(0.8rem, 1.2vw, 1.1rem)',
-                                            color: 'rgba(255, 255, 255, 0.85)',
-                                            lineHeight: 1.4,
-                                        }}>
-                                            The current bid is <span style={{ color: '#ffd700', fontWeight: 'bold' }}>{formatIndianCurrencyWords(activePlayer.current_bid_price || 0)} <span style={{ fontSize: '0.85em', opacity: 0.8 }}>(₹{(activePlayer.current_bid_price || 0).toLocaleString()})</span></span>! 🔥
-                                        </div>
+                                    <div style={{ display: 'flex', gap: '12px', fontSize: '0.85rem', color: '#94a3b8', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px' }}>
+                                        <span>Bat: <strong style={{ color: '#fff' }}>{activePlayer?.players?.batting_style || 'N/A'}</strong></span>
+                                        <span>•</span>
+                                        <span>Bowl: <strong style={{ color: '#fff' }}>{activePlayer?.players?.bowling_style || 'N/A'}</strong></span>
+                                        <span>•</span>
+                                        <span>Base: <strong style={{ color: '#ffd700' }}>₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}</strong></span>
                                     </div>
-                                    <div style={{ flexShrink: 0 }}>
-                                        <img
-                                            src="https://media1.tenor.com/m/rcUlT6pAH9MAAAAd/jethalal-sab-changa-c.gif"
-                                            alt="Jethalal Sab Changa C"
-                                            style={{
-                                                width: isMobile ? 'clamp(80px, 15vw, 120px)' : 'clamp(120px, 16vh, 160px)',
-                                                height: isMobile ? 'clamp(80px, 15vw, 120px)' : 'clamp(120px, 16vh, 160px)',
-                                                borderRadius: '12px',
-                                                border: '2px solid #ffd700',
-                                                boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-                                                objectFit: 'cover',
-                                            }}
+                                </div>
+
+                                {/* Bid Box */}
+                                <div style={{ background: 'rgba(0,0,0,0.4)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '16px 20px', marginTop: '16px' }}>
+                                    <div style={{ fontSize: '0.8rem', color: currentTheme?.accentPrimary || '#ffd700', textTransform: 'uppercase', fontWeight: 800 }}>
+                                        Current Highest Bid
+                                    </div>
+                                    <div style={{ margin: '6px 0 10px' }}>
+                                        <IndianCurrencyDisplay
+                                            amount={activePlayer?.current_bid_price || activeAuction?.base_price || 0}
+                                            size="xl"
+                                            color={winningTeam ? '#39ff14' : '#fff'}
+                                            align="left"
                                         />
                                     </div>
+                                    {winningTeam ? (
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(57,255,20,0.15)', border: '1px solid #39ff14', padding: '6px 14px', borderRadius: '8px' }}>
+                                            {winningTeam.logo_url && <img src={winningTeam.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+                                            <span style={{ fontWeight: 800, color: '#39ff14' }}>{winningTeam.team_name}</span>
+                                        </div>
+                                    ) : (
+                                        <span style={{ color: '#ff4444', fontWeight: 800, animation: 'flash 1s infinite' }}>OPENING BID...</span>
+                                    )}
                                 </div>
-                            )} */}
+                            </div>
+
+                            {/* Right: Live Sorted Leaderboard */}
+                            <div style={{
+                                background: 'rgba(0,0,0,0.3)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: '20px',
+                                padding: '20px',
+                                display: 'flex',
+                                flexDirection: 'column'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 800, color: currentTheme?.accentPrimary || '#ffd700', letterSpacing: '1px' }}>
+                                        🏆 FRANCHISE LEADERBOARD
+                                    </span>
+                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                        SORTED BY REMAINING PURSE
+                                    </span>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '560px' }}>
+                                    {[...teams]
+                                        .sort((a, b) => getTeamRemainingPurse(b) - getTeamRemainingPurse(a))
+                                        .map((t, idx) => {
+                                            const isLeading = winningTeam?.id === t.id;
+                                            const squadCount = allAuctionPlayers.filter(p => p.team_id === t.id && (p.auction_status === 'sold' || Number(p.sold_price) > 0)).length;
+                                            return (
+                                                <div
+                                                    key={t.id}
+                                                    style={{
+                                                        background: isLeading ? 'rgba(57,255,20,0.15)' : 'rgba(255,255,255,0.03)',
+                                                        border: isLeading ? '2px solid #39ff14' : '1px solid rgba(255,255,255,0.06)',
+                                                        borderRadius: '10px',
+                                                        padding: '10px 14px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: idx < 3 ? (currentTheme?.accentPrimary || '#ffd700') : 'rgba(255,255,255,0.1)', color: idx < 3 ? '#000' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.72rem' }}>
+                                                            {idx + 1}
+                                                        </span>
+                                                        {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />}
+                                                        <div>
+                                                            <div style={{ fontWeight: 800, fontSize: '0.85rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</div>
+                                                            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Squad: {squadCount} / {activeAuction?.max_players || 11}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right' }}>
+                                                        <div style={{ fontSize: '0.95rem', fontWeight: 900, color: currentTheme?.accentPrimary || '#ffd700' }}>
+                                                            ₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}
+                                                        </div>
+                                                        {isLeading && (
+                                                            <span style={{ fontSize: '0.65rem', background: '#39ff14', color: '#000', padding: '1px 6px', borderRadius: '4px', fontWeight: 900 }}>
+                                                                CURRENT BIDDER
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    ) : layoutView === 'compact_arena' ? (
+                        /* ================= VIEW 7: HIGH-CONTRAST ARENA HUD ================= */
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '20px' }}>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                                gap: '20px',
+                                background: currentTheme?.cardBg || 'rgba(15,23,42,0.95)',
+                                border: `3px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                borderRadius: '24px',
+                                padding: '24px',
+                                boxShadow: `0 0 60px ${currentTheme?.glowColor || 'rgba(255,215,0,0.3)'}`
+                            }}>
+                                {/* Player Col */}
+                                <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                                    {(activePlayer?.players?.photo_url && !imageError) ? (
+                                        <img
+                                            src={getOptimizedImageUrl(activePlayer.players.photo_url, 400)}
+                                            alt=""
+                                            onError={() => setImageError(true)}
+                                            style={{ width: '150px', height: '180px', objectFit: 'contain', borderRadius: '16px', background: '#090d16', border: `2px solid ${currentTheme?.accentPrimary || '#ffd700'}` }}
+                                        />
+                                    ) : (
+                                        <div style={{ width: '130px', height: '160px', borderRadius: '16px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '4rem', fontWeight: 900 }}>
+                                            {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
+                                        </div>
+                                    )}
+                                    <div>
+                                        {activePlayer?.player_number != null && (
+                                            <span style={{ background: currentTheme?.accentPrimary || '#ffd700', color: '#000', padding: '3px 10px', borderRadius: '4px', fontWeight: 900, fontSize: '0.85rem' }}>
+                                                #{activePlayer.player_number}
+                                            </span>
+                                        )}
+                                        <h1 style={{ margin: '6px 0', fontSize: '2.2rem', fontWeight: 900, color: '#fff' }}>
+                                            {activePlayer?.players?.first_name} {activePlayer?.players?.last_name}
+                                        </h1>
+                                        <div style={{ fontSize: '1.1rem', color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 800 }}>
+                                            {activePlayer?.players?.player_role?.toUpperCase()}
+                                        </div>
+                                        <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '6px' }}>
+                                            Base Price: ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Mega Bid Display */}
+                                <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '18px', border: '2px solid rgba(255,255,255,0.1)', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+                                    <span style={{ fontSize: '0.85rem', color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 900, letterSpacing: '3px', textTransform: 'uppercase' }}>
+                                        ⚡ CURRENT HIGHEST BID
+                                    </span>
+                                    <div style={{ margin: '8px 0' }}>
+                                        <IndianCurrencyDisplay
+                                            amount={activePlayer?.current_bid_price || activeAuction?.base_price || 0}
+                                            size="2xl"
+                                            color={winningTeam ? '#39ff14' : '#fff'}
+                                            align="center"
+                                        />
+                                    </div>
+                                    {winningTeam ? (
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(57,255,20,0.18)', border: '1.5px solid #39ff14', padding: '6px 18px', borderRadius: '50px' }}>
+                                            {winningTeam.logo_url && <img src={winningTeam.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+                                            <span style={{ fontWeight: 900, color: '#39ff14', fontSize: '1rem' }}>{winningTeam.team_name}</span>
+                                        </div>
+                                    ) : (
+                                        <span style={{ color: '#ff4444', fontWeight: 900, fontSize: '0.9rem', letterSpacing: '2px', animation: 'flash 1s infinite' }}>OPENING BID WAITING...</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Franchise Grid 2-Col High-Contrast */}
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                                gap: '12px',
+                                flex: 1
+                            }}>
+                                {teams.map(t => {
+                                    const isLeading = winningTeam?.id === t.id;
+                                    return (
+                                        <div
+                                            key={t.id}
+                                            style={{
+                                                background: isLeading ? 'rgba(57,255,20,0.18)' : 'rgba(255,255,255,0.04)',
+                                                border: isLeading ? '2px solid #39ff14' : '1px solid rgba(255,255,255,0.08)',
+                                                borderRadius: '12px',
+                                                padding: '12px 16px',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
+                                                <span style={{ fontWeight: 800, fontSize: '0.85rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</span>
+                                            </div>
+                                            <span style={{ fontSize: '0.9rem', fontWeight: 900, color: currentTheme?.accentPrimary || '#ffd700' }}>
+                                                ₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : (
+                        /* ================= VIEW 1: CLASSIC SPLIT (DEFAULT) ================= */
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                            gap: isMobile ? '20px' : 'clamp(20px, 5vw, 60px)',
+                            flex: 1,
+                            alignItems: isMobile ? 'start' : 'center',
+                        }}>
+                            {/* Player Photo Column */}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <div style={{ position: 'relative', display: 'inline-block' }}>
+                                    {/* Player Number Badge */}
+                                    {activePlayer?.player_number != null && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '12px',
+                                            left: '12px',
+                                            background: currentTheme?.accentPrimary || '#ffd700',
+                                            color: '#000',
+                                            padding: 'clamp(4px, 0.8vh, 8px) clamp(8px, 1.5vw, 16px)',
+                                            borderRadius: 'clamp(4px, 0.8vw, 8px)',
+                                            fontSize: 'clamp(0.8rem, 1.5vw, 1.4rem)',
+                                            fontWeight: 900,
+                                            zIndex: 10,
+                                            boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+                                            border: '2px solid rgba(0,0,0,0.2)',
+                                        }}>
+                                            #{activePlayer.player_number}
+                                        </div>
+                                    )}
+                                    {(activePlayer?.players?.photo_url && !imageError) ? (
+                                        <img
+                                            src={getOptimizedImageUrl(activePlayer.players.photo_url, 600)}
+                                            alt="Player"
+                                            onError={() => setImageError(true)}
+                                            style={{
+                                                width: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(320px, 28vw, 500px)',
+                                                height: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(420px, 68vh, 750px)',
+                                                maxWidth: '100%',
+                                                objectFit: 'contain',
+                                                objectPosition: 'top center',
+                                                backgroundColor: '#090d16',
+                                                borderRadius: 'clamp(12px, 2vw, 30px)',
+                                                border: `clamp(4px, 0.8vw, 8px) solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                                boxShadow: `0 0 80px ${currentTheme?.glowColor || 'rgba(255,215,0,0.2)'}`,
+                                                display: 'block',
+                                            }}
+                                        />
+                                    ) : (
+                                        <div style={{
+                                            width: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(320px, 28vw, 500px)',
+                                            height: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(420px, 68vh, 750px)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            background: 'linear-gradient(135deg, rgba(255,215,0,0.1), rgba(57,255,20,0.05))',
+                                            color: 'rgba(255,215,0,0.3)',
+                                            fontSize: isMobile ? 'clamp(4.5rem, 20vw, 10rem)' : 'clamp(7rem, 18vh, 20rem)',
+                                            fontWeight: 900,
+                                            borderRadius: 'clamp(12px, 2vw, 30px)',
+                                            border: `clamp(4px, 0.8vw, 8px) solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                            boxShadow: `0 0 80px ${currentTheme?.glowColor || 'rgba(255,215,0,0.2)'}`,
+                                        }}>
+                                            {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
+                                        </div>
+                                    )}
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: 'clamp(-10px, -1.5vh, -18px)',
+                                        left: '50%', transform: 'translateX(-50%)',
+                                        background: currentTheme?.accentPrimary || '#ffd700', color: '#000',
+                                        padding: 'clamp(4px, 1vh, 10px) clamp(12px, 2.5vw, 28px)',
+                                        borderRadius: 'clamp(6px, 1vw, 12px)',
+                                        fontSize: isMobile ? 'clamp(0.65rem, 3vw, 1rem)' : 'clamp(0.7rem, 1.5vw, 1.8rem)',
+                                        fontWeight: 900,
+                                        boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        {activePlayer?.players?.player_role?.toUpperCase()}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Bid Info Column */}
+                            <div style={{
+                                display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                                color: currentTheme?.accentPrimary || '#ffd700',
+                                paddingTop: 'clamp(10px, 1.5vh, 20px)',
+                            }}>
+                                <h1 style={{
+                                    fontSize: isMobile ? 'clamp(1.4rem, 6vw, 2.5rem)' : 'clamp(1.6rem, 4.5vw, 5rem)',
+                                    margin: '0 0 clamp(4px, 1vh, 12px) 0',
+                                    lineHeight: 1.2,
+                                    textShadow: '0 8px 20px rgba(0,0,0,0.5)',
+                                    wordBreak: 'break-word',
+                                }}>
+                                    {activePlayer?.players?.first_name}{' '}
+                                    <span>{activePlayer?.players?.last_name}</span>
+                                </h1>
+                                <div style={{
+                                    fontSize: isMobile ? 'clamp(0.7rem, 3vw, 1rem)' : 'clamp(0.75rem, 1.5vw, 1.8rem)',
+                                    color: 'rgba(255,255,255,0.7)',
+                                    margin: '0 0 clamp(8px, 2vh, 20px) 0',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 'clamp(4px, 1vh, 8px)'
+                                }}>
+                                    <div style={{ display: 'flex', gap: 'clamp(8px, 1.5vw, 20px)', flexWrap: 'wrap' }}>
+                                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Batting Style:</span>
+                                        <span style={{ color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 600 }}>{activePlayer?.players?.batting_style || 'N/A'}</span>
+                                        <span style={{ opacity: 0.3 }}>|</span>
+                                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Bowling Style:</span>
+                                        <span style={{ color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 600 }}>{activePlayer?.players?.bowling_style || 'N/A'}</span>
+                                    </div>
+                                    <div style={{ opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Base Price:</span> <span style={{ color: '#fff', fontWeight: 600 }}>₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}</span>
+                                    </div>
+                                </div>
+
+                                <div style={{
+                                    background: currentTheme?.cardBg || 'rgba(255,255,255,0.03)',
+                                    border: `2px solid ${currentTheme?.cardBorder || 'rgba(255,215,0,0.2)'}`,
+                                    padding: 'clamp(10px, 2vh, 20px)',
+                                    borderRadius: 'clamp(12px, 2vw, 25px)',
+                                    boxShadow: '0 15px 40px rgba(0,0,0,0.4)',
+                                    overflow: 'hidden'
+                                }}>
+                                    <div style={{
+                                        fontSize: isMobile ? 'clamp(0.6rem, 2.5vw, 0.9rem)' : 'clamp(0.7rem, 1.2vw, 1.4rem)',
+                                        color: currentTheme?.accentPrimary || '#ffd700', textTransform: 'uppercase',
+                                        letterSpacing: '4px',
+                                        marginBottom: 'clamp(4px, 0.5vh, 10px)',
+                                        fontWeight: 'bold',
+                                    }}>
+                                        Current Bid
+                                    </div>
+                                    {(() => {
+                                        const bidVal = activePlayer?.current_bid_price || activeAuction?.base_price || 0;
+                                        return (
+                                            <div style={{ margin: '0 0 clamp(8px, 1.5vh, 20px) 0' }}>
+                                                <IndianCurrencyDisplay
+                                                    amount={bidVal}
+                                                    size={isMobile ? 'lg' : '2xl'}
+                                                    color={winningTeam ? '#39ff14' : '#fff'}
+                                                    subtextColor="rgba(255,215,0,0.9)"
+                                                    align="left"
+                                                />
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {winningTeam ? (
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center',
+                                            gap: 'clamp(8px, 1.5vw, 20px)',
+                                            padding: 'clamp(6px, 1.2vh, 12px)',
+                                            background: 'rgba(57,255,20,0.1)',
+                                            borderRadius: 'clamp(8px, 1vw, 15px)',
+                                            border: '1px solid #39ff14',
+                                            flexWrap: 'wrap',
+                                        }}>
+                                            {winningTeam.logo_url && (
+                                                <img src={winningTeam.logo_url} alt="Team" style={{
+                                                    width: 'clamp(28px, 5vw, 70px)',
+                                                    height: 'clamp(28px, 5vw, 70px)',
+                                                    objectFit: 'contain', flexShrink: 0,
+                                                }} />
+                                            )}
+                                            <div style={{
+                                                fontSize: isMobile ? 'clamp(0.9rem, 4vw, 1.4rem)' : 'clamp(1rem, 2.5vw, 2rem)',
+                                                fontWeight: 'bold', color: '#39ff14',
+                                            }}>
+                                                {winningTeam.team_name}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{
+                                            fontSize: isMobile ? 'clamp(0.9rem, 4vw, 1.4rem)' : 'clamp(1rem, 2.5vw, 2rem)',
+                                            fontWeight: 'bold', color: '#ff4444',
+                                            animation: 'flash 1s infinite',
+                                        }}>
+                                            OPENING BID...
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )
                 )}
 
                 {/* Sponsors Ticker */}
@@ -1448,12 +2241,13 @@ const LiveAuctionProjectorPage = () => {
             {showSoldOverlay && lastSoldPlayer && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-                    background: 'radial-gradient(circle at center, rgba(16,24,39,0.98) 0%, #050a10 100%)',
+                    background: currentTheme?.soldBanner || 'radial-gradient(circle at center, rgba(16,24,39,0.98) 0%, #050a10 100%)',
                     zIndex: 1000,
                     display: 'flex', flexDirection: 'column',
                     alignItems: 'center', justifyContent: 'center',
                     animation: 'fadeIn 0.8s cubic-bezier(0.19,1,0.22,1)',
-                    border: 'clamp(6px, 1.5vw, 15px) solid #ffd700',
+                    border: `clamp(6px, 1.5vw, 15px) solid ${currentTheme?.soldBorder || '#ffd700'}`,
+                    boxShadow: currentTheme?.soldGlow ? `inset 0 0 100px ${currentTheme.soldGlow}` : 'none',
                     overflowY: 'hidden',
                     padding: 'clamp(10px, 2vh, 24px)',
                     boxSizing: 'border-box',
@@ -1462,6 +2256,7 @@ const LiveAuctionProjectorPage = () => {
                     <canvas id="sold-canvas" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}></canvas>
 
                     <div className="sold-details-container">
+                        <SoldCelebrationStumps theme={currentTheme} variety={soldVariety} />
                         <div style={{
                             fontSize: 'clamp(1rem, 2.8vh, 2.2rem)', color: '#fff',
                             textTransform: 'uppercase', letterSpacing: 'clamp(2px, 1vw, 12px)',
@@ -1474,7 +2269,8 @@ const LiveAuctionProjectorPage = () => {
 
                         <div style={{
                             fontSize: 'clamp(2.5rem, 9vh, 6.5rem)', fontWeight: 900,
-                            color: '#ffd700', textShadow: '0 0 30px rgba(255,215,0,0.5)',
+                            color: currentTheme?.accentPrimary || '#ffd700',
+                            textShadow: `0 0 30px ${currentTheme?.soldGlow || 'rgba(255,215,0,0.5)'}`,
                             transform: 'rotate(-3deg)',
                             marginBottom: 'clamp(8px, 1.5vh, 20px)',
                             position: 'relative', zIndex: 2,
@@ -1707,6 +2503,7 @@ const LiveAuctionProjectorPage = () => {
                     <canvas id="unsold-canvas" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}></canvas>
 
                     <div className="unsold-details-container" style={{ position: 'relative', zIndex: 2 }}>
+                        <UnsoldAnimationEngine variety={unsoldVariety} />
                         <div style={{
                             fontSize: 'clamp(1rem, 2.8vh, 2.2rem)', color: '#fff',
                             textTransform: 'uppercase', letterSpacing: 'clamp(2px, 1vw, 12px)',

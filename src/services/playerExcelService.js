@@ -313,9 +313,13 @@ export const parsePlayersExcel = async (file, existingPlayers = []) => {
 };
 
 /**
- * Generate and download a sample Excel template for importing players
+ * Generate and download an Excel template for importing players.
+ * If existing players are provided, it populates the template with their actual data.
+ * Otherwise, it includes standard sample demonstration rows.
+ * @param {Array} players - Optional array of player records to pre-fill
+ * @param {string} auctionName - Optional tournament name for file naming
  */
-export const downloadPlayerImportTemplate = () => {
+export const downloadPlayerImportTemplate = (players = [], auctionName = '') => {
   const headers = [
     "First Name",
     "Last Name",
@@ -335,82 +339,53 @@ export const downloadPlayerImportTemplate = () => {
     "Is Owner"
   ];
 
-  const sampleData = [
-    [
-      "Virat",
-      "Kohli",
-      "9876543210",
-      "Male",
-      "Batter",
-      "Right Hand",
-      "Right Arm Medium",
-      "Delhi",
-      "1988-11-05",
-      "virat@example.com",
-      "VIRAT",
-      "40 (L)",
-      "18",
-      "No",
-      "Yes",
-      "No"
-    ],
-    [
-      "Jasprit",
-      "Bumrah",
-      "9876543211",
-      "Male",
-      "Bowler",
-      "Right Hand",
-      "Right Arm Fast",
-      "Ahmedabad",
-      "1993-12-06",
-      "jasprit@example.com",
-      "BUMRAH",
-      "42 (XL)",
-      "93",
-      "No",
-      "No",
-      "No"
-    ],
-    [
-      "Smriti",
-      "Mandhana",
-      "9876543212",
-      "Female",
-      "Batter",
-      "Left Hand",
-      "Right Arm Medium",
-      "Baroda",
-      "1996-07-18",
-      "smriti@example.com",
-      "SMRITI",
-      "36 (S)",
-      "18",
-      "Yes",
-      "No",
-      "No"
-    ],
-    [
-      "Hardik",
-      "Pandya",
-      "9876543213",
-      "Male",
-      "All Rounder",
-      "Right Hand",
-      "Right Arm Fast",
-      "Baroda",
-      "1993-10-11",
-      "hardik@example.com",
-      "HARDIK",
-      "40 (L)",
-      "33",
-      "No",
-      "No",
-      "No"
-    ]
-  ];
+  let rowsData = [];
 
-  const wsData = [headers, ...sampleData];
+  if (players && players.length > 0) {
+    rowsData = players.map(p => [
+      p.first_name || '',
+      p.last_name || '',
+      p.mobile || '',
+      p.gender || 'Male',
+      p.player_role || 'All Rounder',
+      p.batting_style || 'Right Hand',
+      p.bowling_style || 'Right Arm Medium',
+      p.area || '',
+      p.dob || '',
+      p.email || '',
+      p.tshirt_name || '',
+      p.tshirt_size || '',
+      p.tshirt_number || '',
+      p.is_captain ? 'Yes' : 'No',
+      p.is_icon ? 'Yes' : 'No',
+      p.is_owner ? 'Yes' : 'No'
+    ]);
+  } else {
+    rowsData = [
+      ["Rohit", "Sharma", "1000000001", "Male", "All Rounder", "Right Hand", "Right Arm Spin", "Surat", "", "", "", "", "", "No", "No", "No"],
+      ["Virat", "Kohli", "1000000002", "Male", "Batter", "Right Hand", "Right Arm Medium", "", "", "", "", "", "", "No", "No", "No"],
+      ["KL ", "Rahul", "1000000003", "Male", "Wicket Keeper", "Right Hand", "None", "", "", "", "", "", "", "No", "No", "No"],
+      ["Abhishek", "Sharma", "1000000004", "Male", "All Rounder", "Left Hand", "Left Arm Spin", "", "", "", "", "", "", "No", "No", "No"],
+      ["Washigton", "Sundar", "1000000005", "Male", "All Rounder", "Left Hand", "Right Arm Spin", "", "", "", "", "", "", "No", "No", "No"],
+      ["Sheryas", "Iyer", "1000000006", "Male", "Batter", "Right Hand", "None", "", "", "", "", "", "", "No", "No", "No"],
+      ["Shubhman", "Gill", "1000000007", "Male", "Batter", "Right Hand", "None", "", "", "", "", "", "", "No", "No", "No"],
+      ["Suryakumar", "Yadav", "1000000008", "Male", "Batter", "Right Hand", "None", "", "", "", "", "", "", "No", "No", "No"],
+      ["Tilak", "Varma", "1000000009", "Male", "All Rounder", "Left Hand", "Right Arm Spin", "", "", "", "", "", "", "No", "No", "No"],
+      ["Varun", "Chakravarty", "10000000010", "Male", "Bowler", "Right Hand", "Right Arm Spin", "", "", "", "", "", "", "No", "No", "No"],
+      ["Kuldeep", "Yadav", "10000000011", "Male", "Bowler", "Left Hand", "Left Arm Spin", "", "", "", "", "", "", "No", "No", "No"],
+      ["Mohammad", "Shami", "10000000012", "Male", "Bowler", "Right Hand", "Right Arm Fast", "", "", "", "", "", "", "No", "No", "No"],
+      ["Mohammad", "Siraj", "10000000013", "Male", "Bowler", "Right Hand", "Right Arm Fast", "", "", "", "", "", "", "No", "No", "No"],
+      ["Ravindra", "Jadeja", "10000000014", "Male", "All Rounder", "Left Hand", "Left Arm Spin", "", "", "", "", "", "", "No", "No", "No"],
+      ["Rishabh", "Pant", "10000000015", "Male", "Wicket Keeper", "Left Hand", "None", "", "", "", "", "", "", "No", "No", "No"],
+      ["Jasprit", "Bumrah", "10000000016", "Male", "Bowler", "Right Hand", "Right Arm Fast", "", "", "", "", "", "", "No", "No", "No"],
+      ["Axar", "Patel", "10000000017", "Male", "All Rounder", "Left Hand", "Left Arm Spin", "", "", "", "", "", "", "No", "No", "No"],
+      ["Ishan", "Kishan", "10000000018", "Male", "Wicket Keeper", "Left Hand", "None", "", "", "", "", "", "", "No", "No", "No"],
+      ["Hardik", "Pandya", "10000000019", "Male", "All Rounder", "Right Hand", "Right Arm Fast", "", "", "", "", "", "", "No", "No", "No"],
+      ["Arshdeep", "Singh", "10000000020", "Male", "Bowler", "Left Hand", "Left Arm Fast", "", "", "", "", "", "", "No", "No", "No"]
+    ];
+  }
+
+  const wsData = [headers, ...rowsData];
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
   // Column widths for nice presentation
@@ -434,9 +409,15 @@ export const downloadPlayerImportTemplate = () => {
   ];
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Players Template");
+  const sheetName = players && players.length > 0 ? "Current Players" : "Players Template";
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
-  XLSX.writeFile(wb, "Cricket_Auction_Player_Import_Template.xlsx");
+  const cleanName = auctionName ? auctionName.trim().replace(/[^a-zA-Z0-9_-]/g, '_') + '_' : '';
+  const fileName = players && players.length > 0
+    ? `${cleanName}Current_Players_Template.xlsx`
+    : `Cricket_Auction_Player_Import_Template.xlsx`;
+
+  XLSX.writeFile(wb, fileName);
 };
 
 /**
