@@ -7,6 +7,7 @@ import IndianCurrencyDisplay from '../components/IndianCurrencyDisplay';
 import { formatIndianCurrencyWords } from '../utils/currencyUtils';
 import { getProjectorTheme } from '../utils/projectorThemes';
 import ProjectorThemeSelector from '../components/ProjectorThemeSelector';
+import { soundEngine } from '../services/soundEffects';
 import {
   StadiumFloodlights,
   ThemeTextureOverlay,
@@ -14,6 +15,11 @@ import {
   SoldCelebrationStumps,
   UnsoldAnimationEngine
 } from '../components/CricketAnimations';
+import {
+  VerticalTeamAutoSlider,
+  HorizontalTeamAutoSlider,
+  GridTeamAutoSlider
+} from '../components/ProjectorTeamSliders';
 
 const LiveAuctionProjectorPage = () => {
     const [searchParams] = useSearchParams();
@@ -236,6 +242,39 @@ const LiveAuctionProjectorPage = () => {
         }
     };
 
+    const prevBidTrackerRef = useRef({ id: null, price: null, teamId: null });
+
+    // Active Player Bid Change Animation Trigger Effect
+    useEffect(() => {
+        if (activePlayer && activePlayer.auction_status === 'active') {
+            const prev = prevBidTrackerRef.current;
+            const currentPrice = Number(activePlayer.current_bid_price || 0);
+            const currentTeamId = activePlayer.current_bid_team_id;
+
+            // Trigger animation if same active player receives a new bid or bidder team changes
+            if (
+                prev.id === activePlayer.id &&
+                ((currentPrice > 0 && currentPrice !== prev.price) || (currentTeamId && currentTeamId !== prev.teamId))
+            ) {
+                console.log("⚡ Bid Strike Animation Triggered for player:", activePlayer.id, "New Price:", currentPrice);
+                setBidStrikeTrigger(Date.now());
+                try {
+                    soundEngine.playSpinClick();
+                } catch (e) {
+                    console.warn("Sound play error:", e);
+                }
+            }
+
+            prevBidTrackerRef.current = {
+                id: activePlayer.id,
+                price: currentPrice,
+                teamId: currentTeamId
+            };
+        } else {
+            prevBidTrackerRef.current = { id: null, price: null, teamId: null };
+        }
+    }, [activePlayer?.id, activePlayer?.current_bid_price, activePlayer?.current_bid_team_id]);
+
     useEffect(() => {
         fetchData();
 
@@ -249,51 +288,51 @@ const LiveAuctionProjectorPage = () => {
                     triggerProjectorDrawAnimation(p.playerNumber, p.playerName, p.photoUrl);
                 }
             })
+            .on('broadcast', { event: 'bid_strike' }, payload => {
+                console.log('Received direct bid_strike broadcast on projector:', payload);
+                setBidStrikeTrigger(Date.now());
+            })
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
                 table: 'auction_players'
             }, payload => {
                 console.log('Realtime Player Event:', payload.eventType, payload.new?.auction_status);
-                const { new: updatedPlayer, old: oldPlayer, eventType } = payload;
+                const { new: updatedPlayer, eventType } = payload;
+                if (!updatedPlayer) return;
 
                 if (updatedPlayer.auction_status === 'sold') {
                     handleSoldEvent(updatedPlayer);
                 } else if (updatedPlayer.auction_status === 'unsold') {
                     handleUnsoldEvent(updatedPlayer);
-                } else {
-                    if (updatedPlayer.auction_status === 'active') {
-                        // Clear event history for this player if they are put back to active
-                        processedEvents.current.delete(`${updatedPlayer.id}-sold`);
-                        processedEvents.current.delete(`${updatedPlayer.id}-unsold`);
-                    }
+                } else if (updatedPlayer.auction_status === 'active') {
+                    // Clear event history for this player if they are put back to active
+                    processedEvents.current.delete(`${updatedPlayer.id}-sold`);
+                    processedEvents.current.delete(`${updatedPlayer.id}-unsold`);
 
-                    if (
-                        eventType === 'UPDATE' &&
-                        updatedPlayer.auction_status === 'active' &&
-                        oldPlayer && oldPlayer.auction_status === 'active'
-                    ) {
-                        if (updatedPlayer.current_bid_price !== oldPlayer.current_bid_price) {
+                    // Update active player's bid details locally without fetching everything
+                    setActivePlayer(prev => {
+                        const priceChanged = prev && (Number(updatedPlayer.current_bid_price || 0) !== Number(prev.current_bid_price || 0));
+                        const teamChanged = prev && (updatedPlayer.current_bid_team_id !== prev.current_bid_team_id);
+                        if (priceChanged || teamChanged) {
+                            console.log("⚡ Realtime Bid Event triggered strike animation");
                             setBidStrikeTrigger(Date.now());
                         }
-                        // Update active player's bid details locally without fetching everything
-                        setActivePlayer(prev => {
-                            if (prev && prev.id === updatedPlayer.id) {
-                                return {
-                                    ...prev,
-                                    current_bid_price: updatedPlayer.current_bid_price,
-                                    current_bid_team_id: updatedPlayer.current_bid_team_id,
-                                    previous_bid_price: updatedPlayer.previous_bid_price,
-                                    previous_bid_team_id: updatedPlayer.previous_bid_team_id
-                                };
-                            }
-                            fetchData(); // If ID doesn't match, reload to fetch joined player profile
-                            return prev;
-                        });
-                    } else {
-                        // For other updates (e.g. pending -> active), fetch fresh data
-                        fetchData();
-                    }
+                        if (prev && prev.id === updatedPlayer.id) {
+                            return {
+                                ...prev,
+                                current_bid_price: updatedPlayer.current_bid_price,
+                                current_bid_team_id: updatedPlayer.current_bid_team_id,
+                                previous_bid_price: updatedPlayer.previous_bid_price,
+                                previous_bid_team_id: updatedPlayer.previous_bid_team_id
+                            };
+                        }
+                        fetchData(); // If ID doesn't match, reload to fetch joined player profile
+                        return prev;
+                    });
+                } else {
+                    // For other updates (e.g. pending -> active), fetch fresh data
+                    fetchData();
                 }
             })
             .on('postgres_changes', {
@@ -897,13 +936,16 @@ const LiveAuctionProjectorPage = () => {
         <div style={{
             background: currentTheme.bgGradient || '#050a10',
             backgroundColor: currentTheme.bgCanvas || '#050a10',
-            minHeight: '100vh',
+            height: '100vh',
+            maxHeight: '100vh',
             color: '#fff',
             position: 'relative',
             overflow: 'hidden',
-            padding: 'clamp(12px, 2vw, 32px)',
+            padding: 'clamp(8px, 1.4vw, 20px)',
             boxSizing: 'border-box',
-            transition: 'background 0.4s ease'
+            transition: 'background 0.4s ease',
+            display: 'flex',
+            flexDirection: 'column'
         }}>
             {/* Theme Specific Visual Texture (Hex Grid, Embers, Turf) */}
             <ThemeTextureOverlay theme={currentTheme} />
@@ -948,16 +990,22 @@ const LiveAuctionProjectorPage = () => {
             <div style={{
                 position: 'relative', zIndex: 1,
                 display: 'flex', flexDirection: 'column',
-                minHeight: 'calc(100vh - clamp(24px, 4vw, 64px))',
+                height: '100%',
+                maxHeight: '100%',
+                flex: 1,
+                minHeight: 0,
+                overflow: 'hidden',
+                justifyContent: 'space-between'
             }}>
 
                 {/* Header */}
                 <div style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     flexWrap: 'wrap', gap: '8px',
-                    marginBottom: 'clamp(8px, 2vh, 16px)',
+                    marginBottom: 'clamp(4px, 0.8vh, 10px)',
                     borderBottom: '2px solid rgba(255,255,255,0.1)',
-                    paddingBottom: 'clamp(6px, 1.2vh, 12px)',
+                    paddingBottom: 'clamp(4px, 0.8vh, 8px)',
+                    flexShrink: 0
                 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <h2 style={{
@@ -1309,32 +1357,15 @@ const LiveAuctionProjectorPage = () => {
                                 </div>
                             </div>
 
-                            {/* Bottom Participating Teams Strip */}
+                            {/* Bottom Participating Teams Auto-Slider Strip */}
                             {teams && teams.length > 0 && (
-                                <div style={{
-                                    display: 'flex', gap: '10px', overflowX: 'auto', width: '100%',
-                                    padding: '8px 0', justifyContent: 'center', flexWrap: 'wrap',
-                                    marginTop: 'auto'
-                                }}>
-                                    {teams.map(t => {
-                                        const isLeading = winningTeam?.id === t.id;
-                                        return (
-                                            <div
-                                                key={t.id}
-                                                style={{
-                                                    background: isLeading ? 'rgba(57,255,20,0.18)' : 'rgba(255,255,255,0.04)',
-                                                    border: isLeading ? '2px solid #39ff14' : '1px solid rgba(255,255,255,0.1)',
-                                                    borderRadius: '12px', padding: '6px 12px',
-                                                    display: 'flex', alignItems: 'center', gap: '8px',
-                                                    boxShadow: isLeading ? '0 0 20px rgba(57,255,20,0.3)' : 'none'
-                                                }}
-                                            >
-                                                {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
-                                                <span style={{ fontWeight: 700, fontSize: '0.8rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</span>
-                                                <span style={{ fontSize: '0.74rem', color: '#ffd700', fontWeight: 600 }}>₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}</span>
-                                            </div>
-                                        );
-                                    })}
+                                <div style={{ width: '100%', marginTop: 'auto', flexShrink: 0 }}>
+                                    <HorizontalTeamAutoSlider
+                                        teams={teams}
+                                        winningTeam={winningTeam}
+                                        getTeamRemainingPurse={getTeamRemainingPurse}
+                                        theme={currentTheme}
+                                    />
                                 </div>
                             )}
                         </div>
@@ -1404,72 +1435,26 @@ const LiveAuctionProjectorPage = () => {
                                 </div>
                             </div>
 
-                            {/* Main Tactical Grid of All Teams */}
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                                gap: '14px',
-                                flex: 1,
-                                overflowY: 'auto'
-                            }}>
-                                {teams.map(t => {
-                                    const isLeading = winningTeam?.id === t.id;
-                                    return (
-                                        <div
-                                            key={t.id}
-                                            style={{
-                                                background: isLeading ? 'rgba(57,255,20,0.12)' : 'rgba(255,255,255,0.03)',
-                                                border: isLeading ? '2px solid #39ff14' : '1px solid rgba(255,255,255,0.08)',
-                                                borderRadius: '14px',
-                                                padding: '16px',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                justifyContent: 'space-between',
-                                                boxShadow: isLeading ? '0 0 25px rgba(57,255,20,0.3)' : 'none'
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                {t.logo_url ? (
-                                                    <img src={t.logo_url} alt="" style={{ width: 44, height: 44, objectFit: 'contain' }} />
-                                                ) : (
-                                                    <div style={{ width: 44, height: 44, borderRadius: '8px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
-                                                        {t.team_name?.slice(0, 2).toUpperCase()}
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>{t.team_name}</div>
-                                                    <div style={{ fontSize: '0.75rem', color: isLeading ? '#39ff14' : '#94a3b8' }}>
-                                                        {isLeading ? '⚡ LEADING BIDDER' : 'Participating Team'}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div>
-                                                    <span style={{ fontSize: '0.68rem', color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>Remaining Purse</span>
-                                                    <span style={{ fontSize: '1.2rem', fontWeight: 900, color: currentTheme?.accentPrimary || '#ffd700' }}>
-                                                        ₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}
-                                                    </span>
-                                                </div>
-                                                {isLeading && (
-                                                    <span style={{ background: '#39ff14', color: '#000', padding: '2px 8px', borderRadius: '4px', fontWeight: 900, fontSize: '0.7rem' }}>
-                                                        ACTIVE
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            {/* Main Tactical Grid of All Teams with Auto Slider */}
+                            <GridTeamAutoSlider
+                                teams={teams}
+                                winningTeam={winningTeam}
+                                getTeamRemainingPurse={getTeamRemainingPurse}
+                                theme={currentTheme}
+                                allAuctionPlayers={allAuctionPlayers}
+                                maxPlayers={activeAuction?.max_players || 11}
+                            />
                         </div>
                     ) : layoutView === 'cinematic_wide' ? (
                         /* ================= VIEW 4: CINEMATIC WIDESCREEN ================= */
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: isMobile ? '1fr' : '30% 42% 28%',
+                            gridTemplateColumns: isMobile ? '1fr' : '28% 42% 30%',
                             gap: '20px',
                             flex: 1,
-                            alignItems: 'center'
+                            alignItems: 'center',
+                            minHeight: 0,
+                            overflow: 'hidden'
                         }}>
                             {/* Col 1: Portrait */}
                             <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -1480,7 +1465,7 @@ const LiveAuctionProjectorPage = () => {
                                             alt=""
                                             onError={() => setImageError(true)}
                                             style={{
-                                                width: '100%', maxWidth: '320px', height: 'clamp(320px, 50vh, 520px)',
+                                                width: '100%', maxWidth: '320px', height: 'clamp(320px, 48vh, 500px)',
                                                 objectFit: 'contain', backgroundColor: '#090d16',
                                                 borderRadius: '20px', border: `3px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
                                                 boxShadow: `0 0 50px ${currentTheme?.glowColor || 'rgba(255,215,0,0.25)'}`
@@ -1507,7 +1492,7 @@ const LiveAuctionProjectorPage = () => {
 
                             {/* Col 2: Player Details & Giant Bid */}
                             <div>
-                                <h1 style={{ fontSize: 'clamp(2rem, 3.5vw, 3.6rem)', margin: '0 0 10px 0', color: '#fff', fontWeight: 900 }}>
+                                <h1 style={{ fontSize: 'clamp(1.8rem, 3.2vw, 3.4rem)', margin: '0 0 10px 0', color: '#fff', fontWeight: 900 }}>
                                     {activePlayer?.players?.first_name} {activePlayer?.players?.last_name}
                                 </h1>
                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
@@ -1551,36 +1536,17 @@ const LiveAuctionProjectorPage = () => {
                                 </div>
                             </div>
 
-                            {/* Col 3: Right Dock Teams List */}
-                            <div style={{
-                                display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '520px', overflowY: 'auto',
-                                background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)'
-                            }}>
-                                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '1px', marginBottom: '4px' }}>
-                                    Franchise Purses
-                                </div>
-                                {teams.map(t => {
-                                    const isLeading = winningTeam?.id === t.id;
-                                    return (
-                                        <div
-                                            key={t.id}
-                                            style={{
-                                                background: isLeading ? 'rgba(57,255,20,0.15)' : 'rgba(255,255,255,0.03)',
-                                                border: isLeading ? '1.5px solid #39ff14' : '1px solid rgba(255,255,255,0.05)',
-                                                borderRadius: '8px', padding: '8px 10px',
-                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />}
-                                                <span style={{ fontWeight: 700, fontSize: '0.8rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</span>
-                                            </div>
-                                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: currentTheme?.accentPrimary || '#ffd700' }}>
-                                                ₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
+                            {/* Col 3: Right Dock Teams List Auto-Slider */}
+                            <div style={{ height: '100%', maxHeight: 'clamp(360px, 56vh, 560px)', display: 'flex', flexDirection: 'column' }}>
+                                <VerticalTeamAutoSlider
+                                    teams={teams}
+                                    winningTeam={winningTeam}
+                                    getTeamRemainingPurse={getTeamRemainingPurse}
+                                    theme={currentTheme}
+                                    allAuctionPlayers={allAuctionPlayers}
+                                    maxPlayers={activeAuction?.max_players || 11}
+                                    title="FRANCHISE PURSES"
+                                />
                             </div>
                         </div>
                     ) : layoutView === 'tv_broadcast_bar' ? (
@@ -1672,30 +1638,15 @@ const LiveAuctionProjectorPage = () => {
                                 </div>
                             </div>
 
-                            {/* Franchise Purses Strip */}
+                            {/* Franchise Purses Strip with Auto Slider */}
                             {teams && teams.length > 0 && (
-                                <div style={{
-                                    display: 'flex', gap: '8px', overflowX: 'auto', width: '100%',
-                                    padding: '4px 0', justifyContent: 'center', flexWrap: 'wrap'
-                                }}>
-                                    {teams.map(t => {
-                                        const isLeading = winningTeam?.id === t.id;
-                                        return (
-                                            <div
-                                                key={t.id}
-                                                style={{
-                                                    background: isLeading ? 'rgba(57,255,20,0.18)' : 'rgba(255,255,255,0.03)',
-                                                    border: isLeading ? '1.5px solid #39ff14' : '1px solid rgba(255,255,255,0.08)',
-                                                    borderRadius: '8px', padding: '4px 10px',
-                                                    display: 'flex', alignItems: 'center', gap: '6px'
-                                                }}
-                                            >
-                                                {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} />}
-                                                <span style={{ fontWeight: 700, fontSize: '0.75rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</span>
-                                                <span style={{ fontSize: '0.72rem', color: '#ffd700', fontWeight: 600 }}>₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}</span>
-                                            </div>
-                                        );
-                                    })}
+                                <div style={{ width: '100%', flexShrink: 0, marginTop: 'auto' }}>
+                                    <HorizontalTeamAutoSlider
+                                        teams={teams}
+                                        winningTeam={winningTeam}
+                                        getTeamRemainingPurse={getTeamRemainingPurse}
+                                        theme={currentTheme}
+                                    />
                                 </div>
                             )}
                         </div>
@@ -1706,7 +1657,9 @@ const LiveAuctionProjectorPage = () => {
                             gridTemplateColumns: isMobile ? '1fr' : '45% 55%',
                             gap: '24px',
                             flex: 1,
-                            alignItems: 'stretch'
+                            alignItems: 'stretch',
+                            minHeight: 0,
+                            overflow: 'hidden'
                         }}>
                             {/* Left: Player Focus & Big Bid Box */}
                             <div style={{
@@ -1781,382 +1734,327 @@ const LiveAuctionProjectorPage = () => {
                                 </div>
                             </div>
 
-                            {/* Right: Live Sorted Leaderboard */}
-                            <div style={{
-                                background: 'rgba(0,0,0,0.3)',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                borderRadius: '20px',
-                                padding: '20px',
-                                display: 'flex',
-                                flexDirection: 'column'
-                            }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
-                                    <span style={{ fontSize: '0.9rem', fontWeight: 800, color: currentTheme?.accentPrimary || '#ffd700', letterSpacing: '1px' }}>
-                                        🏆 FRANCHISE LEADERBOARD
-                                    </span>
-                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                                        SORTED BY REMAINING PURSE
-                                    </span>
-                                </div>
-
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '560px' }}>
-                                    {[...teams]
-                                        .sort((a, b) => getTeamRemainingPurse(b) - getTeamRemainingPurse(a))
-                                        .map((t, idx) => {
-                                            const isLeading = winningTeam?.id === t.id;
-                                            const squadCount = allAuctionPlayers.filter(p => p.team_id === t.id && (p.auction_status === 'sold' || Number(p.sold_price) > 0)).length;
-                                            return (
-                                                <div
-                                                    key={t.id}
-                                                    style={{
-                                                        background: isLeading ? 'rgba(57,255,20,0.15)' : 'rgba(255,255,255,0.03)',
-                                                        border: isLeading ? '2px solid #39ff14' : '1px solid rgba(255,255,255,0.06)',
-                                                        borderRadius: '10px',
-                                                        padding: '10px 14px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'space-between'
-                                                    }}
-                                                >
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                        <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: idx < 3 ? (currentTheme?.accentPrimary || '#ffd700') : 'rgba(255,255,255,0.1)', color: idx < 3 ? '#000' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.72rem' }}>
-                                                            {idx + 1}
-                                                        </span>
-                                                        {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />}
-                                                        <div>
-                                                            <div style={{ fontWeight: 800, fontSize: '0.85rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</div>
-                                                            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Squad: {squadCount} / {activeAuction?.max_players || 11}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ textAlign: 'right' }}>
-                                                        <div style={{ fontSize: '0.95rem', fontWeight: 900, color: currentTheme?.accentPrimary || '#ffd700' }}>
-                                                            ₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}
-                                                        </div>
-                                                        {isLeading && (
-                                                            <span style={{ fontSize: '0.65rem', background: '#39ff14', color: '#000', padding: '1px 6px', borderRadius: '4px', fontWeight: 900 }}>
-                                                                CURRENT BIDDER
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                </div>
+                            {/* Right: Live Sorted Leaderboard Auto Slider */}
+                            <div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                                <VerticalTeamAutoSlider
+                                    teams={teams}
+                                    winningTeam={winningTeam}
+                                    getTeamRemainingPurse={getTeamRemainingPurse}
+                                    theme={currentTheme}
+                                    allAuctionPlayers={allAuctionPlayers}
+                                    maxPlayers={activeAuction?.max_players || 11}
+                                    sortByPurse={true}
+                                    title="🏆 FRANCHISE LEADERBOARD"
+                                />
                             </div>
                         </div>
                     ) : layoutView === 'compact_arena' ? (
                         /* ================= VIEW 7: HIGH-CONTRAST ARENA HUD ================= */
-                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '20px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: '16px', minHeight: 0, overflow: 'hidden' }}>
                             <div style={{
                                 display: 'grid',
                                 gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                                gap: '20px',
+                                gap: '16px',
                                 background: currentTheme?.cardBg || 'rgba(15,23,42,0.95)',
                                 border: `3px solid ${currentTheme?.accentPrimary || '#ffd700'}`,
-                                borderRadius: '24px',
-                                padding: '24px',
-                                boxShadow: `0 0 60px ${currentTheme?.glowColor || 'rgba(255,215,0,0.3)'}`
+                                borderRadius: '20px',
+                                padding: '16px 20px',
+                                boxShadow: `0 0 60px ${currentTheme?.glowColor || 'rgba(255,215,0,0.3)'}`,
+                                flexShrink: 0
                             }}>
                                 {/* Player Col */}
-                                <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                                     {(activePlayer?.players?.photo_url && !imageError) ? (
                                         <img
                                             src={getOptimizedImageUrl(activePlayer.players.photo_url, 400)}
                                             alt=""
                                             onError={() => setImageError(true)}
-                                            style={{ width: '150px', height: '180px', objectFit: 'contain', borderRadius: '16px', background: '#090d16', border: `2px solid ${currentTheme?.accentPrimary || '#ffd700'}` }}
+                                            style={{ width: '120px', height: '140px', objectFit: 'contain', borderRadius: '14px', background: '#090d16', border: `2px solid ${currentTheme?.accentPrimary || '#ffd700'}` }}
                                         />
                                     ) : (
-                                        <div style={{ width: '130px', height: '160px', borderRadius: '16px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '4rem', fontWeight: 900 }}>
+                                        <div style={{ width: '100px', height: '120px', borderRadius: '14px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', fontWeight: 900 }}>
                                             {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
                                         </div>
                                     )}
                                     <div>
                                         {activePlayer?.player_number != null && (
-                                            <span style={{ background: currentTheme?.accentPrimary || '#ffd700', color: '#000', padding: '3px 10px', borderRadius: '4px', fontWeight: 900, fontSize: '0.85rem' }}>
+                                            <span style={{ background: currentTheme?.accentPrimary || '#ffd700', color: '#000', padding: '2px 8px', borderRadius: '4px', fontWeight: 900, fontSize: '0.8rem' }}>
                                                 #{activePlayer.player_number}
                                             </span>
                                         )}
-                                        <h1 style={{ margin: '6px 0', fontSize: '2.2rem', fontWeight: 900, color: '#fff' }}>
+                                        <h1 style={{ margin: '4px 0', fontSize: '1.8rem', fontWeight: 900, color: '#fff' }}>
                                             {activePlayer?.players?.first_name} {activePlayer?.players?.last_name}
                                         </h1>
-                                        <div style={{ fontSize: '1.1rem', color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 800 }}>
+                                        <div style={{ fontSize: '0.95rem', color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 800 }}>
                                             {activePlayer?.players?.player_role?.toUpperCase()}
                                         </div>
-                                        <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '6px' }}>
+                                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
                                             Base Price: ₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Mega Bid Display */}
-                                <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '18px', border: '2px solid rgba(255,255,255,0.1)', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-                                    <span style={{ fontSize: '0.85rem', color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 900, letterSpacing: '3px', textTransform: 'uppercase' }}>
+                                <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: '16px', border: '2px solid rgba(255,255,255,0.1)', padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+                                    <span style={{ fontSize: '0.75rem', color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 900, letterSpacing: '2px', textTransform: 'uppercase' }}>
                                         ⚡ CURRENT HIGHEST BID
                                     </span>
-                                    <div style={{ margin: '8px 0' }}>
+                                    <div style={{ margin: '4px 0' }}>
                                         <IndianCurrencyDisplay
                                             amount={activePlayer?.current_bid_price || activeAuction?.base_price || 0}
-                                            size="2xl"
+                                            size="xl"
                                             color={winningTeam ? '#39ff14' : '#fff'}
                                             align="center"
                                         />
                                     </div>
                                     {winningTeam ? (
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(57,255,20,0.18)', border: '1.5px solid #39ff14', padding: '6px 18px', borderRadius: '50px' }}>
-                                            {winningTeam.logo_url && <img src={winningTeam.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
-                                            <span style={{ fontWeight: 900, color: '#39ff14', fontSize: '1rem' }}>{winningTeam.team_name}</span>
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(57,255,20,0.18)', border: '1.5px solid #39ff14', padding: '4px 14px', borderRadius: '50px' }}>
+                                            {winningTeam.logo_url && <img src={winningTeam.logo_url} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} />}
+                                            <span style={{ fontWeight: 900, color: '#39ff14', fontSize: '0.9rem' }}>{winningTeam.team_name}</span>
                                         </div>
                                     ) : (
-                                        <span style={{ color: '#ff4444', fontWeight: 900, fontSize: '0.9rem', letterSpacing: '2px', animation: 'flash 1s infinite' }}>OPENING BID WAITING...</span>
+                                        <span style={{ color: '#ff4444', fontWeight: 900, fontSize: '0.85rem', letterSpacing: '1px', animation: 'flash 1s infinite' }}>OPENING BID WAITING...</span>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Franchise Grid 2-Col High-Contrast */}
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                                gap: '12px',
-                                flex: 1
-                            }}>
-                                {teams.map(t => {
-                                    const isLeading = winningTeam?.id === t.id;
-                                    return (
-                                        <div
-                                            key={t.id}
-                                            style={{
-                                                background: isLeading ? 'rgba(57,255,20,0.18)' : 'rgba(255,255,255,0.04)',
-                                                border: isLeading ? '2px solid #39ff14' : '1px solid rgba(255,255,255,0.08)',
-                                                borderRadius: '12px',
-                                                padding: '12px 16px',
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center'
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                {t.logo_url && <img src={t.logo_url} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />}
-                                                <span style={{ fontWeight: 800, fontSize: '0.85rem', color: isLeading ? '#39ff14' : '#fff' }}>{t.team_name}</span>
-                                            </div>
-                                            <span style={{ fontSize: '0.9rem', fontWeight: 900, color: currentTheme?.accentPrimary || '#ffd700' }}>
-                                                ₹{getTeamRemainingPurse(t).toLocaleString('en-IN')}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            {/* Franchise Grid Auto-Slider */}
+                            <GridTeamAutoSlider
+                                teams={teams}
+                                winningTeam={winningTeam}
+                                getTeamRemainingPurse={getTeamRemainingPurse}
+                                theme={currentTheme}
+                                allAuctionPlayers={allAuctionPlayers}
+                                maxPlayers={activeAuction?.max_players || 11}
+                            />
                         </div>
                     ) : (
                         /* ================= VIEW 1: CLASSIC SPLIT (DEFAULT) ================= */
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                            gap: isMobile ? '20px' : 'clamp(20px, 5vw, 60px)',
-                            flex: 1,
-                            alignItems: isMobile ? 'start' : 'center',
-                        }}>
-                            {/* Player Photo Column */}
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <div style={{ position: 'relative', display: 'inline-block' }}>
-                                    {/* Player Number Badge */}
-                                    {activePlayer?.player_number != null && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: '12px',
-                                            left: '12px',
-                                            background: currentTheme?.accentPrimary || '#ffd700',
-                                            color: '#000',
-                                            padding: 'clamp(4px, 0.8vh, 8px) clamp(8px, 1.5vw, 16px)',
-                                            borderRadius: 'clamp(4px, 0.8vw, 8px)',
-                                            fontSize: 'clamp(0.8rem, 1.5vw, 1.4rem)',
-                                            fontWeight: 900,
-                                            zIndex: 10,
-                                            boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
-                                            border: '2px solid rgba(0,0,0,0.2)',
-                                        }}>
-                                            #{activePlayer.player_number}
-                                        </div>
-                                    )}
-                                    {(activePlayer?.players?.photo_url && !imageError) ? (
-                                        <img
-                                            src={getOptimizedImageUrl(activePlayer.players.photo_url, 600)}
-                                            alt="Player"
-                                            onError={() => setImageError(true)}
-                                            style={{
-                                                width: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(320px, 28vw, 500px)',
-                                                height: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(420px, 68vh, 750px)',
-                                                maxWidth: '100%',
-                                                objectFit: 'contain',
-                                                objectPosition: 'top center',
-                                                backgroundColor: '#090d16',
+                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between', gap: '14px', minHeight: 0, overflow: 'hidden' }}>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                                gap: isMobile ? '20px' : 'clamp(20px, 4vw, 48px)',
+                                flex: 1,
+                                alignItems: isMobile ? 'start' : 'center',
+                                minHeight: 0
+                            }}>
+                                {/* Player Photo Column */}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                                        {/* Player Number Badge */}
+                                        {activePlayer?.player_number != null && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: '12px',
+                                                left: '12px',
+                                                background: currentTheme?.accentPrimary || '#ffd700',
+                                                color: '#000',
+                                                padding: 'clamp(4px, 0.8vh, 8px) clamp(8px, 1.5vw, 16px)',
+                                                borderRadius: 'clamp(4px, 0.8vw, 8px)',
+                                                fontSize: 'clamp(0.8rem, 1.5vw, 1.4rem)',
+                                                fontWeight: 900,
+                                                zIndex: 10,
+                                                boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+                                                border: '2px solid rgba(0,0,0,0.2)',
+                                            }}>
+                                                #{activePlayer.player_number}
+                                            </div>
+                                        )}
+                                        {(activePlayer?.players?.photo_url && !imageError) ? (
+                                            <img
+                                                src={getOptimizedImageUrl(activePlayer.players.photo_url, 600)}
+                                                alt="Player"
+                                                onError={() => setImageError(true)}
+                                                style={{
+                                                    width: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(300px, 26vw, 460px)',
+                                                    height: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(360px, 55vh, 600px)',
+                                                    maxWidth: '100%',
+                                                    objectFit: 'contain',
+                                                    objectPosition: 'top center',
+                                                    backgroundColor: '#090d16',
+                                                    borderRadius: 'clamp(12px, 2vw, 30px)',
+                                                    border: `clamp(4px, 0.8vw, 8px) solid ${currentTheme?.accentPrimary || '#ffd700'}`,
+                                                    boxShadow: `0 0 80px ${currentTheme?.glowColor || 'rgba(255,215,0,0.2)'}`,
+                                                    display: 'block',
+                                                }}
+                                            />
+                                        ) : (
+                                            <div style={{
+                                                width: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(300px, 26vw, 460px)',
+                                                height: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(360px, 55vh, 600px)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                background: 'linear-gradient(135deg, rgba(255,215,0,0.1), rgba(57,255,20,0.05))',
+                                                color: 'rgba(255,215,0,0.3)',
+                                                fontSize: isMobile ? 'clamp(4.5rem, 20vw, 10rem)' : 'clamp(7rem, 18vh, 20rem)',
+                                                fontWeight: 900,
                                                 borderRadius: 'clamp(12px, 2vw, 30px)',
                                                 border: `clamp(4px, 0.8vw, 8px) solid ${currentTheme?.accentPrimary || '#ffd700'}`,
                                                 boxShadow: `0 0 80px ${currentTheme?.glowColor || 'rgba(255,215,0,0.2)'}`,
-                                                display: 'block',
-                                            }}
-                                        />
-                                    ) : (
-                                        <div style={{
-                                            width: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(320px, 28vw, 500px)',
-                                            height: isMobile ? 'clamp(260px, 75vw, 450px)' : 'clamp(420px, 68vh, 750px)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            background: 'linear-gradient(135deg, rgba(255,215,0,0.1), rgba(57,255,20,0.05))',
-                                            color: 'rgba(255,215,0,0.3)',
-                                            fontSize: isMobile ? 'clamp(4.5rem, 20vw, 10rem)' : 'clamp(7rem, 18vh, 20rem)',
-                                            fontWeight: 900,
-                                            borderRadius: 'clamp(12px, 2vw, 30px)',
-                                            border: `clamp(4px, 0.8vw, 8px) solid ${currentTheme?.accentPrimary || '#ffd700'}`,
-                                            boxShadow: `0 0 80px ${currentTheme?.glowColor || 'rgba(255,215,0,0.2)'}`,
-                                        }}>
-                                            {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
-                                        </div>
-                                    )}
-                                    <div style={{
-                                        position: 'absolute',
-                                        bottom: 'clamp(-10px, -1.5vh, -18px)',
-                                        left: '50%', transform: 'translateX(-50%)',
-                                        background: currentTheme?.accentPrimary || '#ffd700', color: '#000',
-                                        padding: 'clamp(4px, 1vh, 10px) clamp(12px, 2.5vw, 28px)',
-                                        borderRadius: 'clamp(6px, 1vw, 12px)',
-                                        fontSize: isMobile ? 'clamp(0.65rem, 3vw, 1rem)' : 'clamp(0.7rem, 1.5vw, 1.8rem)',
-                                        fontWeight: 900,
-                                        boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
-                                        whiteSpace: 'nowrap',
-                                    }}>
-                                        {activePlayer?.players?.player_role?.toUpperCase()}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Bid Info Column */}
-                            <div style={{
-                                display: 'flex', flexDirection: 'column', justifyContent: 'center',
-                                color: currentTheme?.accentPrimary || '#ffd700',
-                                paddingTop: 'clamp(10px, 1.5vh, 20px)',
-                            }}>
-                                <h1 style={{
-                                    fontSize: isMobile ? 'clamp(1.4rem, 6vw, 2.5rem)' : 'clamp(1.6rem, 4.5vw, 5rem)',
-                                    margin: '0 0 clamp(4px, 1vh, 12px) 0',
-                                    lineHeight: 1.2,
-                                    textShadow: '0 8px 20px rgba(0,0,0,0.5)',
-                                    wordBreak: 'break-word',
-                                }}>
-                                    {activePlayer?.players?.first_name}{' '}
-                                    <span>{activePlayer?.players?.last_name}</span>
-                                </h1>
-                                <div style={{
-                                    fontSize: isMobile ? 'clamp(0.7rem, 3vw, 1rem)' : 'clamp(0.75rem, 1.5vw, 1.8rem)',
-                                    color: 'rgba(255,255,255,0.7)',
-                                    margin: '0 0 clamp(8px, 2vh, 20px) 0',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 'clamp(4px, 1vh, 8px)'
-                                }}>
-                                    <div style={{ display: 'flex', gap: 'clamp(8px, 1.5vw, 20px)', flexWrap: 'wrap' }}>
-                                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Batting Style:</span>
-                                        <span style={{ color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 600 }}>{activePlayer?.players?.batting_style || 'N/A'}</span>
-                                        <span style={{ opacity: 0.3 }}>|</span>
-                                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Bowling Style:</span>
-                                        <span style={{ color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 600 }}>{activePlayer?.players?.bowling_style || 'N/A'}</span>
-                                    </div>
-                                    <div style={{ opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Base Price:</span> <span style={{ color: '#fff', fontWeight: 600 }}>₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}</span>
-                                    </div>
-                                </div>
-
-                                <div style={{
-                                    background: currentTheme?.cardBg || 'rgba(255,255,255,0.03)',
-                                    border: `2px solid ${currentTheme?.cardBorder || 'rgba(255,215,0,0.2)'}`,
-                                    padding: 'clamp(10px, 2vh, 20px)',
-                                    borderRadius: 'clamp(12px, 2vw, 25px)',
-                                    boxShadow: '0 15px 40px rgba(0,0,0,0.4)',
-                                    overflow: 'hidden'
-                                }}>
-                                    <div style={{
-                                        fontSize: isMobile ? 'clamp(0.6rem, 2.5vw, 0.9rem)' : 'clamp(0.7rem, 1.2vw, 1.4rem)',
-                                        color: currentTheme?.accentPrimary || '#ffd700', textTransform: 'uppercase',
-                                        letterSpacing: '4px',
-                                        marginBottom: 'clamp(4px, 0.5vh, 10px)',
-                                        fontWeight: 'bold',
-                                    }}>
-                                        Current Bid
-                                    </div>
-                                    {(() => {
-                                        const bidVal = activePlayer?.current_bid_price || activeAuction?.base_price || 0;
-                                        return (
-                                            <div style={{ margin: '0 0 clamp(8px, 1.5vh, 20px) 0' }}>
-                                                <IndianCurrencyDisplay
-                                                    amount={bidVal}
-                                                    size={isMobile ? 'lg' : '2xl'}
-                                                    color={winningTeam ? '#39ff14' : '#fff'}
-                                                    subtextColor="rgba(255,215,0,0.9)"
-                                                    align="left"
-                                                />
-                                            </div>
-                                        );
-                                    })()}
-
-                                    {winningTeam ? (
-                                        <div style={{
-                                            display: 'flex', alignItems: 'center',
-                                            gap: 'clamp(8px, 1.5vw, 20px)',
-                                            padding: 'clamp(6px, 1.2vh, 12px)',
-                                            background: 'rgba(57,255,20,0.1)',
-                                            borderRadius: 'clamp(8px, 1vw, 15px)',
-                                            border: '1px solid #39ff14',
-                                            flexWrap: 'wrap',
-                                        }}>
-                                            {winningTeam.logo_url && (
-                                                <img src={winningTeam.logo_url} alt="Team" style={{
-                                                    width: 'clamp(28px, 5vw, 70px)',
-                                                    height: 'clamp(28px, 5vw, 70px)',
-                                                    objectFit: 'contain', flexShrink: 0,
-                                                }} />
-                                            )}
-                                            <div style={{
-                                                fontSize: isMobile ? 'clamp(0.9rem, 4vw, 1.4rem)' : 'clamp(1rem, 2.5vw, 2rem)',
-                                                fontWeight: 'bold', color: '#39ff14',
                                             }}>
-                                                {winningTeam.team_name}
+                                                {(activePlayer?.players?.first_name?.charAt(0) || '') + (activePlayer?.players?.last_name?.charAt(0) || '')}
                                             </div>
-                                        </div>
-                                    ) : (
+                                        )}
                                         <div style={{
-                                            fontSize: isMobile ? 'clamp(0.9rem, 4vw, 1.4rem)' : 'clamp(1rem, 2.5vw, 2rem)',
-                                            fontWeight: 'bold', color: '#ff4444',
-                                            animation: 'flash 1s infinite',
+                                            position: 'absolute',
+                                            bottom: 'clamp(-10px, -1.5vh, -18px)',
+                                            left: '50%', transform: 'translateX(-50%)',
+                                            background: currentTheme?.accentPrimary || '#ffd700', color: '#000',
+                                            padding: 'clamp(4px, 1vh, 10px) clamp(12px, 2.5vw, 28px)',
+                                            borderRadius: 'clamp(6px, 1vw, 12px)',
+                                            fontSize: isMobile ? 'clamp(0.65rem, 3vw, 1rem)' : 'clamp(0.7rem, 1.5vw, 1.8rem)',
+                                            fontWeight: 900,
+                                            boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+                                            whiteSpace: 'nowrap',
                                         }}>
-                                            OPENING BID...
+                                            {activePlayer?.players?.player_role?.toUpperCase()}
                                         </div>
-                                    )}
+                                    </div>
+                                </div>
+
+                                {/* Bid Info Column */}
+                                <div style={{
+                                    display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                                    color: currentTheme?.accentPrimary || '#ffd700',
+                                    paddingTop: 'clamp(10px, 1.5vh, 20px)',
+                                }}>
+                                    <h1 style={{
+                                        fontSize: isMobile ? 'clamp(1.4rem, 6vw, 2.5rem)' : 'clamp(1.6rem, 4vw, 4.2rem)',
+                                        margin: '0 0 clamp(4px, 1vh, 10px) 0',
+                                        lineHeight: 1.2,
+                                        textShadow: '0 8px 20px rgba(0,0,0,0.5)',
+                                        wordBreak: 'break-word',
+                                    }}>
+                                        {activePlayer?.players?.first_name}{' '}
+                                        <span>{activePlayer?.players?.last_name}</span>
+                                    </h1>
+                                    <div style={{
+                                        fontSize: isMobile ? 'clamp(0.7rem, 3vw, 1rem)' : 'clamp(0.75rem, 1.4vw, 1.5rem)',
+                                        color: 'rgba(255,255,255,0.7)',
+                                        margin: '0 0 clamp(8px, 1.8vh, 18px) 0',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 'clamp(4px, 1vh, 8px)'
+                                    }}>
+                                        <div style={{ display: 'flex', gap: 'clamp(8px, 1.5vw, 20px)', flexWrap: 'wrap' }}>
+                                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Batting Style:</span>
+                                            <span style={{ color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 600 }}>{activePlayer?.players?.batting_style || 'N/A'}</span>
+                                            <span style={{ opacity: 0.3 }}>|</span>
+                                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Bowling Style:</span>
+                                            <span style={{ color: currentTheme?.accentPrimary || '#ffd700', fontWeight: 600 }}>{activePlayer?.players?.bowling_style || 'N/A'}</span>
+                                        </div>
+                                        <div style={{ opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9em' }}>Base Price:</span> <span style={{ color: '#fff', fontWeight: 600 }}>₹{(activeAuction?.base_price || 0).toLocaleString('en-IN')}</span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{
+                                        background: currentTheme?.cardBg || 'rgba(255,255,255,0.03)',
+                                        border: `2px solid ${currentTheme?.cardBorder || 'rgba(255,215,0,0.2)'}`,
+                                        padding: 'clamp(10px, 1.8vh, 18px)',
+                                        borderRadius: 'clamp(12px, 2vw, 25px)',
+                                        boxShadow: '0 15px 40px rgba(0,0,0,0.4)',
+                                        overflow: 'hidden'
+                                    }}>
+                                        <div style={{
+                                            fontSize: isMobile ? 'clamp(0.6rem, 2.5vw, 0.9rem)' : 'clamp(0.7rem, 1.2vw, 1.3rem)',
+                                            color: currentTheme?.accentPrimary || '#ffd700', textTransform: 'uppercase',
+                                            letterSpacing: '4px',
+                                            marginBottom: 'clamp(4px, 0.5vh, 8px)',
+                                            fontWeight: 'bold',
+                                        }}>
+                                            Current Bid
+                                        </div>
+                                        {(() => {
+                                            const bidVal = activePlayer?.current_bid_price || activeAuction?.base_price || 0;
+                                            return (
+                                                <div style={{ margin: '0 0 clamp(6px, 1.2vh, 16px) 0' }}>
+                                                    <IndianCurrencyDisplay
+                                                        amount={bidVal}
+                                                        size={isMobile ? 'lg' : '2xl'}
+                                                        color={winningTeam ? '#39ff14' : '#fff'}
+                                                        subtextColor="rgba(255,215,0,0.9)"
+                                                        align="left"
+                                                    />
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {winningTeam ? (
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center',
+                                                gap: 'clamp(8px, 1.5vw, 20px)',
+                                                padding: 'clamp(6px, 1.2vh, 12px)',
+                                                background: 'rgba(57,255,20,0.1)',
+                                                borderRadius: 'clamp(8px, 1vw, 15px)',
+                                                border: '1px solid #39ff14',
+                                                flexWrap: 'wrap',
+                                            }}>
+                                                {winningTeam.logo_url && (
+                                                    <img src={winningTeam.logo_url} alt="Team" style={{
+                                                        width: 'clamp(28px, 4vw, 55px)',
+                                                        height: 'clamp(28px, 4vw, 55px)',
+                                                        objectFit: 'contain', flexShrink: 0,
+                                                    }} />
+                                                )}
+                                                <div style={{
+                                                    fontSize: isMobile ? 'clamp(0.9rem, 4vw, 1.4rem)' : 'clamp(1rem, 2.2vw, 1.8rem)',
+                                                    fontWeight: 'bold', color: '#39ff14',
+                                                }}>
+                                                    {winningTeam.team_name}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{
+                                                fontSize: isMobile ? 'clamp(0.9rem, 4vw, 1.4rem)' : 'clamp(1rem, 2.2vw, 1.8rem)',
+                                                fontWeight: 'bold', color: '#ff4444',
+                                                animation: 'flash 1s infinite',
+                                            }}>
+                                                OPENING BID...
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
+
+                            {/* Participating Teams Auto Slider for Classic Split */}
+                            {teams && teams.length > 0 && (
+                                <div style={{ width: '100%', flexShrink: 0, marginTop: 'auto' }}>
+                                    <HorizontalTeamAutoSlider
+                                        teams={teams}
+                                        winningTeam={winningTeam}
+                                        getTeamRemainingPurse={getTeamRemainingPurse}
+                                        theme={currentTheme}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )
                 )}
 
-                {/* Sponsors Ticker */}
+                {/* Sponsors Ticker - Fixed Pinning & Full Visibility */}
                 {activeAuction && sponsors && sponsors.length > 0 && (
                     <div style={{
                         marginTop: 'auto',
-                        paddingTop: 'clamp(8px, 1.2vh, 16px)',
+                        paddingTop: '6px',
+                        paddingBottom: '2px',
                         borderTop: '1.5px solid rgba(255, 255, 255, 0.08)',
                         width: '100%',
                         textAlign: 'center',
-                        zIndex: 2,
-                        overflow: 'hidden'
+                        zIndex: 10,
+                        overflow: 'hidden',
+                        flexShrink: 0
                     }}>
                         <div
                             onClick={() => fetchData(true)}
                             style={{
-                                fontSize: 'clamp(0.6rem, 1.2vw, 0.8rem)',
+                                fontSize: 'clamp(0.6rem, 1vw, 0.75rem)',
                                 textTransform: 'uppercase',
                                 letterSpacing: '3px',
                                 color: 'var(--accent-gold)',
-                                marginBottom: 'clamp(6px, 1vh, 12px)',
+                                marginBottom: '4px',
                                 fontWeight: 'bold',
-                                opacity: 0.8,
+                                opacity: 0.85,
                                 cursor: 'pointer',
                                 display: 'inline-block',
                                 userSelect: 'none'
@@ -2169,16 +2067,16 @@ const LiveAuctionProjectorPage = () => {
                             overflow: 'hidden',
                             width: '100%',
                             display: 'flex',
-                            maskImage: 'linear-gradient(to right, transparent, white 15%, white 85%, transparent)',
-                            WebkitMaskImage: 'linear-gradient(to right, transparent, white 15%, white 85%, transparent)',
+                            maskImage: 'linear-gradient(to right, transparent, white 2.5%, white 97.5%, transparent)',
+                            WebkitMaskImage: 'linear-gradient(to right, transparent, white 2.5%, white 97.5%, transparent)',
                         }}>
                             <div style={{
                                 display: 'flex',
-                                gap: 'clamp(15px, 2.5vw, 35px)',
+                                gap: '16px',
                                 animation: 'marquee 25s linear infinite',
                                 whiteSpace: 'nowrap',
                                 width: 'max-content',
-                                padding: '4px 0'
+                                padding: '2px 0'
                             }}>
                                 {(sponsors.length < 4
                                     ? [...sponsors, ...sponsors, ...sponsors, ...sponsors]
@@ -2190,17 +2088,17 @@ const LiveAuctionProjectorPage = () => {
                                             display: 'inline-flex',
                                             flexDirection: 'column',
                                             alignItems: 'center',
-                                            gap: '4px',
-                                            background: 'rgba(255, 255, 255, 0.03)',
-                                            padding: '8px 16px',
-                                            borderRadius: '10px',
+                                            gap: '3px',
+                                            background: 'rgba(255, 255, 255, 0.035)',
+                                            padding: '6px 14px',
+                                            borderRadius: '8px',
                                             border: '1px solid rgba(255, 255, 255, 0.08)',
                                             boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)',
                                             textAlign: 'center',
                                             flexShrink: 0
                                         }}
                                     >
-                                        <span style={{ fontSize: 'clamp(0.8rem, 1.2vw, 1rem)', color: 'rgba(255,255,255,0.95)', fontWeight: 'bold', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                                        <span style={{ fontSize: 'clamp(0.72rem, 1vw, 0.85rem)', color: 'rgba(255,255,255,0.95)', fontWeight: 'bold', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
                                             {sponsor.name}
                                         </span>
                                         {sponsor.photo_url ? (
@@ -2208,22 +2106,22 @@ const LiveAuctionProjectorPage = () => {
                                                 src={getOptimizedImageUrl(sponsor.photo_url, 300)}
                                                 alt={sponsor.name}
                                                 style={{
-                                                    height: 'clamp(60px, 8.5vh, 95px)',
-                                                    width: 'clamp(120px, 15vw, 200px)',
+                                                    height: 'clamp(44px, 5.5vh, 65px)',
+                                                    width: 'clamp(100px, 12vw, 160px)',
                                                     objectFit: 'contain',
-                                                    borderRadius: '6px'
+                                                    borderRadius: '4px'
                                                 }}
                                             />
                                         ) : (
                                             <div style={{
-                                                height: 'clamp(60px, 8.5vh, 95px)',
-                                                width: 'clamp(120px, 15vw, 200px)',
+                                                height: 'clamp(44px, 5.5vh, 65px)',
+                                                width: 'clamp(100px, 12vw, 160px)',
                                                 background: 'rgba(255,255,255,0.05)',
-                                                borderRadius: '6px',
+                                                borderRadius: '4px',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
-                                                fontSize: '0.8rem',
+                                                fontSize: '0.75rem',
                                                 color: 'rgba(255,255,255,0.4)',
                                             }}>
                                                 NO LOGO
