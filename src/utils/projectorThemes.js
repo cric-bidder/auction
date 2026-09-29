@@ -307,6 +307,12 @@ export const PROJECTOR_LAYOUT_VIEWS = [
     desc: 'Split layout with high-impact player profile card and live sorted franchise leaderboard'
   },
   {
+    id: 'sponsor_showcase',
+    name: '💎 Grand Sponsor Showcase',
+    tagline: 'Prominent High-Impact Sponsor Branding',
+    desc: 'Features extra-large tournament sponsor logos & showcase wall with live bidding and team purse ticker'
+  },
+  {
     id: 'compact_arena',
     name: '⚡ High-Contrast Arena HUD',
     tagline: 'Ultra Large Typography & Maximum Visibility',

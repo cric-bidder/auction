@@ -946,289 +946,95 @@ const LiveAuctionPage = () => {
                 </div>
 
                 {activeTab === 'bidding' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        {/* Top Section: Active Player Spotlight & Pending Players */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem' }}>
 
-                        {/* Center Stage: Active Bidding */}
-                        <div className="glass-panel" style={{ padding: '2.5rem', minHeight: '500px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                            {!activePlayer ? (
-                                <div style={{ color: 'var(--text-muted)' }}>
-                                    <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🏏</div>
-                                    <h3>No Active Auction</h3>
-                                    <p>Select a player from the "Pending Players" list on the right to start bidding.</p>
-                                </div>
-                            ) : (
-                                <div style={{ width: '100%' }}>
-                                    <div className="badge badge-success" style={{ marginBottom: '2rem', fontSize: '1rem', padding: '0.5rem 1.5rem', borderRadius: '50px', background: 'var(--accent-gold)', color: '#000', fontWeight: 'bold' }}>LIVE BIDDING</div>
-
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3rem', marginBottom: '3rem' }}>
-                                        <div style={{ position: 'relative' }}>
-                                            {activePlayer.players.photo_url ? (
-                                                <img
-                                                    src={getOptimizedImageUrl(activePlayer.players.photo_url, 500)}
-                                                    alt="Player"
-                                                    style={{ width: 180, height: 220, objectFit: 'contain', objectPosition: 'top center', backgroundColor: '#090d16', borderRadius: '15px', border: '4px solid var(--accent-gold)', boxShadow: '0 0 30px rgba(255,215,0,0.3)' }}
-                                                />
-                                            ) : (
-                                                <div style={{ width: 180, height: 220, borderRadius: '15px', border: '4px solid var(--accent-gold)', background: 'linear-gradient(135deg, rgba(255,215,0,0.2), rgba(0,0,0,0.4))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', fontWeight: 900, color: 'var(--accent-gold)', boxShadow: '0 0 30px rgba(255,215,0,0.3)' }}>
-                                                    {getPlayerInitials(activePlayer.players)}
-                                                </div>
-                                            )}
-                                            <div style={{ position: 'absolute', bottom: -15, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent-gold)', color: '#000', padding: '0.3rem 1rem', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.8rem' }}>
-                                                {activePlayer.players.player_role}
-                                            </div>
-                                        </div>
-
-                                        <div style={{ textAlign: 'left' }}>
-                                            <h1 style={{ fontSize: '3rem', margin: 0, color: 'var(--text-main)' }}>
-                                                {activePlayer.player_number && <span style={{ color: 'var(--accent-gold)', marginRight: '1rem' }}>#{activePlayer.player_number}</span>}
-                                                {activePlayer.players.first_name} {activePlayer.players.last_name}
-                                            </h1>
-                                            <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', margin: '0.4rem 0' }}>
-                                              Base Price: ₹{(activeAuction.base_price || 0).toLocaleString('en-IN')}
-                                              {activePlayer.players.gender && (
-                                                <span style={{ marginLeft: '1rem', color: activePlayer.players.gender.toLowerCase() === 'female' ? '#f472b6' : '#60a5fa', fontWeight: 'bold' }}>
-                                                  ({activePlayer.players.gender})
-                                                </span>
-                                              )}
-                                            </p>
-
-                                            <div style={{ marginTop: '2rem', background: 'rgba(255,215,0,0.1)', padding: '1.5rem', borderRadius: '10px', border: '1px solid var(--accent-gold)', overflow: 'hidden' }}>
-                                                <div style={{ fontSize: '0.9rem', color: 'var(--accent-gold)', textTransform: 'uppercase', letterSpacing: '2px' }}>Current Highest Bid</div>
-                                                {(() => {
-                                                    const bidVal = activePlayer.current_bid_price || activeAuction.base_price || 0;
-                                                    return (
-                                                        <div style={{ margin: '0.6rem 0 0.8rem 0' }}>
-                                                            <IndianCurrencyDisplay 
-                                                                amount={bidVal} 
-                                                                size="2xl" 
-                                                                color="var(--text-main)" 
-                                                                subtextColor="var(--accent-gold)" 
-                                                            />
-                                                        </div>
-                                                    );
-                                                })()}
-                                                <div style={{ fontSize: '1.1rem', color: winningTeam ? 'var(--accent-green)' : '#ff4444' }}>
-                                                    {winningTeam ? `By: ${winningTeam.team_name}` : 'No Bids Yet'}
-                                                </div>
-                                            </div>
-                                        </div>
+                            {/* Center Stage: Active Bidding */}
+                            <div className="glass-panel" style={{ padding: '2.5rem', minHeight: activePlayer ? 'auto' : '500px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                                {!activePlayer ? (
+                                    <div style={{ color: 'var(--text-muted)' }}>
+                                        <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🏏</div>
+                                        <h3>No Active Auction</h3>
+                                        <p>Select a player from the "Pending Players" list on the right to start bidding.</p>
                                     </div>
+                                ) : (
+                                    <div style={{ width: '100%' }}>
+                                        <div className="badge badge-success" style={{ marginBottom: '2rem', fontSize: '1rem', padding: '0.5rem 1.5rem', borderRadius: '50px', background: 'var(--accent-gold)', color: '#000', fontWeight: 'bold' }}>LIVE BIDDING</div>
 
-                                    {/* Top Action Controls Bar */}
-                                    <div style={{
-                                        background: 'rgba(15, 23, 42, 0.95)',
-                                        border: '1px solid rgba(255, 215, 0, 0.3)',
-                                        borderRadius: '12px',
-                                        padding: '1rem 1.5rem',
-                                        margin: '1.5rem 0',
-                                        display: 'flex',
-                                        gap: '1rem',
-                                        justify: 'center',
-                                        alignItems: 'center',
-                                        flexWrap: 'wrap',
-                                        boxShadow: '0 8px 25px rgba(0,0,0,0.5)'
-                                    }}>
-                                        <button
-                                            onClick={undoLastBid}
-                                            disabled={actionLoading || !activePlayer.current_bid_team_id}
-                                            className="btn btn-outline"
-                                            style={{ padding: '0.7rem 1.5rem', color: '#f59e0b', borderColor: '#f59e0b', fontSize: '1rem', fontWeight: 'bold' }}
-                                        >
-                                            ↩️ UNDO BID
-                                        </button>
-                                        <button
-                                            onClick={finalizeSold}
-                                            disabled={actionLoading || !activePlayer.current_bid_team_id}
-                                            className="btn btn-primary"
-                                            style={{ padding: '0.7rem 2.2rem', background: '#10b981', borderColor: '#10b981', fontSize: '1.05rem', fontWeight: 'bold' }}
-                                        >
-                                            🔨 SOLD
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setSelectedAssignTeam(activePlayer.current_bid_team_id || '');
-                                                setAssignPriceMode('free');
-                                                setShowDirectAssignModal(true);
-                                            }}
-                                            disabled={actionLoading || !activePlayer}
-                                            className="btn"
-                                            style={{ padding: '0.7rem 1.6rem', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: '#fff', fontSize: '1rem', fontWeight: 'bold', border: '1px solid #c084fc' }}
-                                            title="Assign this active player directly to a team (Free ₹0 or Base Price)"
-                                        >
-                                            ⚡ DIRECT ASSIGN
-                                        </button>
-                                        <button
-                                            onClick={markUnsold}
-                                            disabled={actionLoading}
-                                            className="btn"
-                                            style={{ padding: '0.7rem 1.6rem', background: '#ef4444', color: '#fff', fontSize: '1rem', fontWeight: 'bold' }}
-                                        >
-                                            ❌ UNSOLD
-                                        </button>
-                                        <button
-                                            onClick={cancelActiveAuction}
-                                            disabled={actionLoading}
-                                            className="btn btn-outline"
-                                            style={{ padding: '0.7rem 1.4rem', color: '#94a3b8', borderColor: '#94a3b8', fontSize: '0.95rem' }}
-                                        >
-                                            ⏹️ CANCEL
-                                        </button>
-                                    </div>
-
-                                    {/* Bidding Controls */}
-                                    <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-                                        {/* Custom Direct Bid Form */}
-                                        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-color)', borderRadius: '10px', padding: '1.5rem', marginBottom: '2rem', textAlign: 'left' }}>
-                                            <h4 style={{ color: 'var(--accent-gold)', marginTop: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                ⚡ DIRECT CUSTOM BID
-                                            </h4>
-                                            <form onSubmit={placeCustomBid} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
-                                                <div style={{ flex: '1 1 200px' }}>
-                                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>Bid Amount (₹)</label>
-                                                    <input 
-                                                        type="number" 
-                                                        placeholder="e.g. 50000" 
-                                                        value={customBid}
-                                                        onChange={e => setCustomBid(e.target.value)}
-                                                        className="form-input" 
-                                                        style={{ width: '100%', padding: '0.6rem' }}
-                                                        min="0"
-                                                        required
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3rem', marginBottom: '2rem' }}>
+                                            <div style={{ position: 'relative' }}>
+                                                {activePlayer.players.photo_url ? (
+                                                    <img
+                                                        src={getOptimizedImageUrl(activePlayer.players.photo_url, 500)}
+                                                        alt="Player"
+                                                        style={{ width: 180, height: 220, objectFit: 'contain', objectPosition: 'top center', backgroundColor: '#090d16', borderRadius: '15px', border: '4px solid var(--accent-gold)', boxShadow: '0 0 30px rgba(255,215,0,0.3)' }}
                                                     />
+                                                ) : (
+                                                    <div style={{ width: 180, height: 220, borderRadius: '15px', border: '4px solid var(--accent-gold)', background: 'linear-gradient(135deg, rgba(255,215,0,0.2), rgba(0,0,0,0.4))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', fontWeight: 900, color: 'var(--accent-gold)', boxShadow: '0 0 30px rgba(255,215,0,0.3)' }}>
+                                                        {getPlayerInitials(activePlayer.players)}
+                                                    </div>
+                                                )}
+                                                <div style={{ position: 'absolute', bottom: -15, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent-gold)', color: '#000', padding: '0.3rem 1rem', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                                                    {activePlayer.players.player_role}
                                                 </div>
-                                                <div style={{ flex: '1 1 200px' }}>
-                                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>Select Bidding Team</label>
-                                                    <select 
-                                                        value={customBidTeam}
-                                                        onChange={e => setCustomBidTeam(e.target.value)}
-                                                        className="form-select"
-                                                        style={{ width: '100%', padding: '0.6rem' }}
-                                                        required
-                                                    >
-                                                        <option value="">-- Choose Team --</option>
-                                                        {displayTeams.map(team => (
-                                                            <option key={team.id} value={team.id}>{team.team_name}</option>
-                                                        ))}
-                                                    </select>
+                                            </div>
+
+                                            <div style={{ textAlign: 'left' }}>
+                                                <h1 style={{ fontSize: '3rem', margin: 0, color: 'var(--text-main)' }}>
+                                                    {activePlayer.player_number && <span style={{ color: 'var(--accent-gold)', marginRight: '1rem' }}>#{activePlayer.player_number}</span>}
+                                                    {activePlayer.players.first_name} {activePlayer.players.last_name}
+                                                </h1>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', margin: '0.4rem 0' }}>
+                                                  Base Price: ₹{(activeAuction.base_price || 0).toLocaleString('en-IN')}
+                                                  {activePlayer.players.gender && (
+                                                    <span style={{ marginLeft: '1rem', color: activePlayer.players.gender.toLowerCase() === 'female' ? '#f472b6' : '#60a5fa', fontWeight: 'bold' }}>
+                                                      ({activePlayer.players.gender})
+                                                    </span>
+                                                  )}
+                                                </p>
+
+                                                <div style={{ marginTop: '1.5rem', background: 'rgba(255,215,0,0.1)', padding: '1.2rem 1.5rem', borderRadius: '10px', border: '1px solid var(--accent-gold)', overflow: 'hidden' }}>
+                                                    <div style={{ fontSize: '0.9rem', color: 'var(--accent-gold)', textTransform: 'uppercase', letterSpacing: '2px' }}>Current Highest Bid</div>
+                                                    {(() => {
+                                                        const bidVal = activePlayer.current_bid_price || activeAuction.base_price || 0;
+                                                        return (
+                                                            <div style={{ margin: '0.5rem 0 0.6rem 0' }}>
+                                                                <IndianCurrencyDisplay 
+                                                                    amount={bidVal} 
+                                                                    size="2xl" 
+                                                                    color="var(--text-main)" 
+                                                                    subtextColor="var(--accent-gold)" 
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                    <div style={{ fontSize: '1.1rem', color: winningTeam ? 'var(--accent-green)' : '#ff4444' }}>
+                                                        {winningTeam ? `By: ${winningTeam.team_name}` : 'No Bids Yet'}
+                                                    </div>
                                                 </div>
-                                                <button 
-                                                    type="submit" 
-                                                    disabled={actionLoading || !customBid || !customBidTeam}
-                                                    className="btn btn-primary"
-                                                    style={{ padding: '0.6rem 2rem', height: 'fit-content', background: 'var(--accent-gold)', color: '#000', fontWeight: 'bold' }}
-                                                >
-                                                    Apply Custom Bid
-                                                </button>
-                                            </form>
+                                            </div>
                                         </div>
 
-                                        <h4 style={{ color: 'var(--text-muted)', marginBottom: '1.2rem', textAlign: 'left' }}>PLACE BID FOR:</h4>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
-                                            {displayTeams.map(team => {
-                                                 const maxPlayers = activeAuction?.max_players || 11;
-                                                 const teamSquad = players.filter(p => p.team_id === team.id);
-                                                 const teamSquadExcludingActive = players.filter(p => p.team_id === team.id && p.id !== activePlayer?.id);
-                                                 const squadCount = teamSquad.length;
-                                                 const isFull = squadCount >= maxPlayers;
-                                                 const isCurrentBidder = activePlayer && team.id === activePlayer.current_bid_team_id;
-
-                                                 const maxBudget = activeAuction?.max_budget || 0;
-                                                 const spent = teamSquad.reduce((acc, p) => acc + (p.sold_price || 0), 0);
-                                                 const remainingPurse = maxBudget - spent;
-
-                                                 // Max Bid calculation with enforceReserveRule
-                                                 const maxBidInfo = calculateTeamMaxBid(team, activeAuction, teamSquadExcludingActive, enforceReserveRule);
-                                                 const basePrice = activeAuction?.base_price || 0;
-                                                 const currentBid = activePlayer?.current_bid_price || 0;
-                                                 const nextBid = !activePlayer?.current_bid_team_id ? basePrice : (currentBid + basePrice);
-                                                 const cannotAffordNext = !isCurrentBidder && (nextBid > maxBidInfo.maxBid);
-
-                                                 return (
-                                                     <button
-                                                         key={team.id}
-                                                         onClick={() => placeBid(team.id)}
-                                                         disabled={actionLoading || (isFull && !isCurrentBidder) || cannotAffordNext}
-                                                         className="btn btn-outline"
-                                                         style={{
-                                                             display: 'flex',
-                                                             flexDirection: 'column',
-                                                             alignItems: 'center',
-                                                             gap: '0.35rem',
-                                                             padding: '0.8rem 0.6rem',
-                                                             position: 'relative',
-                                                             borderColor: isCurrentBidder ? 'var(--accent-gold)' : isFull ? '#ef4444' : cannotAffordNext ? 'rgba(239,68,68,0.5)' : 'var(--border-color)',
-                                                             background: isCurrentBidder ? 'rgba(255,215,0,0.15)' : isFull ? 'rgba(239,68,68,0.1)' : cannotAffordNext ? 'rgba(239,68,68,0.05)' : 'transparent',
-                                                             opacity: (isFull && !isCurrentBidder) || cannotAffordNext ? 0.65 : 1,
-                                                             cursor: (isFull && !isCurrentBidder) || cannotAffordNext ? 'not-allowed' : 'pointer'
-                                                         }}
-                                                     >
-                                                         {team.logo_url ? (
-                                                             <img src={team.logo_url} alt="Logo" style={{ width: 44, height: 44, objectFit: 'contain' }} />
-                                                         ) : (
-                                                             <div style={{ width: 44, height: 44, borderRadius: '6px', background: 'var(--accent-gold)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 'bold' }}>
-                                                                 {getTeamInitials(team.team_name)}
-                                                             </div>
-                                                         )}
-                                                         <span style={{ fontSize: '0.88rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>{team.team_name}</span>
-                                                         <span style={{
-                                                             fontSize: '0.72rem',
-                                                             fontWeight: 'bold',
-                                                             padding: '0.12rem 0.45rem',
-                                                             borderRadius: '4px',
-                                                             background: isFull ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)',
-                                                             color: isFull ? '#ef4444' : 'var(--text-muted)'
-                                                         }}>
-                                                             {isFull ? `FULL (${squadCount}/${maxPlayers})` : `Squad: ${squadCount}/${maxPlayers}`}
-                                                         </span>
-                                                         {maxBudget > 0 ? (
-                                                             <>
-                                                                 <span style={{
-                                                                     fontSize: '0.72rem',
-                                                                     fontWeight: 'bold',
-                                                                     padding: '0.12rem 0.45rem',
-                                                                     borderRadius: '4px',
-                                                                     background: remainingPurse < 0 ? 'rgba(239,68,68,0.2)' : 'rgba(57,255,20,0.12)',
-                                                                     color: remainingPurse < 0 ? '#ef4444' : 'var(--accent-green)',
-                                                                     border: remainingPurse < 0 ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(57,255,20,0.3)'
-                                                                 }}>
-                                                                     Purse: ₹{remainingPurse.toLocaleString('en-IN')}
-                                                                 </span>
-                                                                 <span style={{
-                                                                     fontSize: '0.72rem',
-                                                                     fontWeight: 'bold',
-                                                                     padding: '0.12rem 0.45rem',
-                                                                     borderRadius: '4px',
-                                                                     background: cannotAffordNext ? 'rgba(239,68,68,0.2)' : 'rgba(255,215,0,0.15)',
-                                                                     color: cannotAffordNext ? '#ef4444' : 'var(--accent-gold)',
-                                                                     border: cannotAffordNext ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(255,215,0,0.3)'
-                                                                 }}>
-                                                                     {cannotAffordNext ? `Cap: ₹${maxBidInfo.maxBid.toLocaleString('en-IN')}` : `Max Bid: ₹${maxBidInfo.maxBid.toLocaleString('en-IN')}`}
-                                                                 </span>
-                                                             </>
-                                                         ) : (
-                                                             <span style={{
-                                                                 fontSize: '0.72rem',
-                                                                 fontWeight: 'bold',
-                                                                 padding: '0.12rem 0.45rem',
-                                                                 borderRadius: '4px',
-                                                                 background: 'rgba(57,255,20,0.1)',
-                                                                 color: 'var(--accent-green)',
-                                                                 border: '1px solid rgba(57,255,20,0.3)'
-                                                             }}>
-                                                                 Spent: ₹{spent.toLocaleString('en-IN')}
-                                                             </span>
-                                                         )}
-                                                     </button>
-                                                 );
-                                             })}
-                                        </div>
-
-                                        <div style={{ display: 'flex', gap: '1.2rem', marginTop: '3rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                        {/* Top Action Controls Bar */}
+                                        <div style={{
+                                            background: 'rgba(15, 23, 42, 0.95)',
+                                            border: '1px solid rgba(255, 215, 0, 0.3)',
+                                            borderRadius: '12px',
+                                            padding: '1rem 1.5rem',
+                                            margin: '1rem 0 0 0',
+                                            display: 'flex',
+                                            gap: '1rem',
+                                            justify: 'center',
+                                            alignItems: 'center',
+                                            flexWrap: 'wrap',
+                                            boxShadow: '0 8px 25px rgba(0,0,0,0.5)'
+                                        }}>
                                             <button
                                                 onClick={undoLastBid}
                                                 disabled={actionLoading || !activePlayer.current_bid_team_id}
                                                 className="btn btn-outline"
-                                                style={{ padding: '1rem 2rem', color: '#f59e0b', borderColor: '#f59e0b', fontSize: '1.1rem' }}
+                                                style={{ padding: '0.7rem 1.5rem', color: '#f59e0b', borderColor: '#f59e0b', fontSize: '1rem', fontWeight: 'bold' }}
                                             >
                                                 ↩️ UNDO BID
                                             </button>
@@ -1236,7 +1042,7 @@ const LiveAuctionPage = () => {
                                                 onClick={finalizeSold}
                                                 disabled={actionLoading || !activePlayer.current_bid_team_id}
                                                 className="btn btn-primary"
-                                                style={{ padding: '1rem 3rem', background: '#10b981', borderColor: '#10b981', fontSize: '1.1rem' }}
+                                                style={{ padding: '0.7rem 2.2rem', background: '#10b981', borderColor: '#10b981', fontSize: '1.05rem', fontWeight: 'bold' }}
                                             >
                                                 🔨 SOLD
                                             </button>
@@ -1248,7 +1054,7 @@ const LiveAuctionPage = () => {
                                                 }}
                                                 disabled={actionLoading || !activePlayer}
                                                 className="btn"
-                                                style={{ padding: '1rem 2rem', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: '#fff', fontSize: '1.1rem', fontWeight: 'bold', border: '1px solid #c084fc' }}
+                                                style={{ padding: '0.7rem 1.6rem', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: '#fff', fontSize: '1rem', fontWeight: 'bold', border: '1px solid #c084fc' }}
                                                 title="Assign this active player directly to a team (Free ₹0 or Base Price)"
                                             >
                                                 ⚡ DIRECT ASSIGN
@@ -1257,7 +1063,7 @@ const LiveAuctionPage = () => {
                                                 onClick={markUnsold}
                                                 disabled={actionLoading}
                                                 className="btn"
-                                                style={{ padding: '1rem 2rem', background: '#ef4444', color: '#fff', fontSize: '1.1rem' }}
+                                                style={{ padding: '0.7rem 1.6rem', background: '#ef4444', color: '#fff', fontSize: '1rem', fontWeight: 'bold' }}
                                             >
                                                 ❌ UNSOLD
                                             </button>
@@ -1265,153 +1071,355 @@ const LiveAuctionPage = () => {
                                                 onClick={cancelActiveAuction}
                                                 disabled={actionLoading}
                                                 className="btn btn-outline"
-                                                style={{ padding: '1rem 2rem', color: '#94a3b8', borderColor: '#94a3b8', fontSize: '1.1rem' }}
+                                                style={{ padding: '0.7rem 1.4rem', color: '#94a3b8', borderColor: '#94a3b8', fontSize: '0.95rem' }}
                                             >
                                                 ⏹️ CANCEL
                                             </button>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Sidebar Column */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            {/* Top Right Active Player Bidding Controls Box */}
-                            {activePlayer && (
-                                <div className="glass-panel" style={{ padding: '1.2rem', border: '2px solid var(--accent-gold)', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.95)', boxShadow: '0 8px 25px rgba(255,215,0,0.2)' }}>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent-gold)', marginBottom: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <span>⚡ LIVE BID ACTIONS</span>
-                                        <span style={{ fontSize: '0.75rem', color: '#10b981' }}>#{activePlayer.player_number || ''}</span>
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
-                                        <button
-                                            onClick={undoLastBid}
-                                            disabled={actionLoading || !activePlayer.current_bid_team_id}
-                                            className="btn btn-outline"
-                                            style={{ padding: '0.65rem 0.6rem', color: '#f59e0b', borderColor: '#f59e0b', fontSize: '0.82rem', fontWeight: 'bold', width: '100%' }}
-                                        >
-                                            ↩️ UNDO BID
-                                        </button>
-                                        <button
-                                            onClick={finalizeSold}
-                                            disabled={actionLoading || !activePlayer.current_bid_team_id}
-                                            className="btn btn-primary"
-                                            style={{ padding: '0.65rem 0.6rem', background: '#10b981', borderColor: '#10b981', fontSize: '0.85rem', fontWeight: 'bold', width: '100%' }}
-                                        >
-                                            🔨 SOLD
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setSelectedAssignTeam(activePlayer.current_bid_team_id || '');
-                                                setAssignPriceMode('free');
-                                                setShowDirectAssignModal(true);
-                                            }}
-                                            disabled={actionLoading || !activePlayer}
-                                            className="btn"
-                                            style={{ padding: '0.65rem 0.6rem', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: '#fff', fontSize: '0.82rem', fontWeight: 'bold', gridColumn: 'span 2' }}
-                                            title="Assign this active player directly to a team (Free ₹0 or Base Price)"
-                                        >
-                                            ⚡ DIRECT ASSIGN / FREE
-                                        </button>
-                                        <button
-                                            onClick={markUnsold}
-                                            disabled={actionLoading}
-                                            className="btn"
-                                            style={{ padding: '0.65rem 0.6rem', background: '#ef4444', color: '#fff', fontSize: '0.85rem', fontWeight: 'bold', width: '100%' }}
-                                        >
-                                            ❌ UNSOLD
-                                        </button>
-                                        <button
-                                            onClick={cancelActiveAuction}
-                                            disabled={actionLoading}
-                                            className="btn btn-outline"
-                                            style={{ padding: '0.65rem 0.6rem', color: '#94a3b8', borderColor: '#94a3b8', fontSize: '0.82rem', width: '100%' }}
-                                        >
-                                            ⏹️ CANCEL
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Sidebar: Pending Players */}
-                            <div className="glass-panel" style={{ padding: '1.5rem', maxHeight: '75vh', overflowY: 'auto' }}>
-                            <h3 style={{ color: 'var(--accent-gold)', fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>PENDING PLAYERS ({pendingPlayers.length})</h3>
-                            
-                            {/* Search and Filters */}
-                            <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                <input 
-                                    type="text" 
-                                    placeholder="Search name or number..." 
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    style={{ width: '100%', padding: '0.6rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', fontSize: '0.9rem' }}
-                                />
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ROLE:</span>
-                                    <select 
-                                        value={roleFilter}
-                                        onChange={(e) => setRoleFilter(e.target.value)}
-                                        style={{ flex: 1, padding: '0.4rem', background: '#1a1a1a', border: '1px solid var(--border-color)', borderRadius: '4px', color: '#fff', fontSize: '0.8rem' }}
-                                    >
-                                        {roles.map(role => <option key={role} value={role}>{role}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                {pendingPlayers.length === 0 ? (
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No players found.</p>
-                                ) : (
-                                    pendingPlayers.map(p => (
-                                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px' }}>
-                                            <Link to={`/player/${p.players?.id || p.player_id}`} state={{ from: location.pathname + location.search }} style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, textDecoration: 'none', color: 'inherit' }}>
-                                                {p.players.photo_url ? (
-                                                    <img src={getOptimizedImageUrl(p.players.photo_url, 100)} alt="P" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'contain', backgroundColor: '#0f172a' }} />
-                                                ) : (
-                                                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 'bold', color: '#fff' }}>
-                                                        {getPlayerInitials(p.players)}
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <div style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
-                                                        {p.player_number && <span style={{ color: 'var(--accent-gold)', marginRight: '0.5rem' }}>#{p.player_number}</span>}
-                                                        {p.players.first_name} {p.players.last_name}
-                                                    </div>
-                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                                      {p.players.player_role}
-                                                    </div>
-                                                </div>
-                                            </Link>
-                                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedAssignTeam('');
-                                                        setAssignPriceMode('free');
-                                                        setAssigningPendingPlayer(p);
-                                                    }}
-                                                    disabled={actionLoading || activePlayer}
-                                                    className="btn"
-                                                    style={{ padding: '0.3rem 0.5rem', fontSize: '0.7rem', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.4)' }}
-                                                    title="Assign this player directly to a team (Free ₹0 or Base Price)"
-                                                >
-                                                    ⚡ Assign
-                                                </button>
-                                                <button
-                                                    onClick={() => startAuctionForPlayer(p.id)}
-                                                    disabled={actionLoading || activePlayer}
-                                                    className="btn btn-outline"
-                                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem' }}
-                                                >
-                                                    Start
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))
                                 )}
                             </div>
+
+                            {/* Sidebar Column */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                {/* Top Right Active Player Bidding Controls Box */}
+                                {activePlayer && (
+                                    <div className="glass-panel" style={{ padding: '1.2rem', border: '2px solid var(--accent-gold)', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.95)', boxShadow: '0 8px 25px rgba(255,215,0,0.2)' }}>
+                                        <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent-gold)', marginBottom: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <span>⚡ LIVE BID ACTIONS</span>
+                                            <span style={{ fontSize: '0.75rem', color: '#10b981' }}>#{activePlayer.player_number || ''}</span>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                                            <button
+                                                onClick={undoLastBid}
+                                                disabled={actionLoading || !activePlayer.current_bid_team_id}
+                                                className="btn btn-outline"
+                                                style={{ padding: '0.65rem 0.6rem', color: '#f59e0b', borderColor: '#f59e0b', fontSize: '0.82rem', fontWeight: 'bold', width: '100%' }}
+                                            >
+                                                ↩️ UNDO BID
+                                            </button>
+                                            <button
+                                                onClick={finalizeSold}
+                                                disabled={actionLoading || !activePlayer.current_bid_team_id}
+                                                className="btn btn-primary"
+                                                style={{ padding: '0.65rem 0.6rem', background: '#10b981', borderColor: '#10b981', fontSize: '0.85rem', fontWeight: 'bold', width: '100%' }}
+                                            >
+                                                🔨 SOLD
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedAssignTeam(activePlayer.current_bid_team_id || '');
+                                                    setAssignPriceMode('free');
+                                                    setShowDirectAssignModal(true);
+                                                }}
+                                                disabled={actionLoading || !activePlayer}
+                                                className="btn"
+                                                style={{ padding: '0.65rem 0.6rem', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: '#fff', fontSize: '0.82rem', fontWeight: 'bold', gridColumn: 'span 2' }}
+                                                title="Assign this active player directly to a team (Free ₹0 or Base Price)"
+                                            >
+                                                ⚡ DIRECT ASSIGN / FREE
+                                            </button>
+                                            <button
+                                                onClick={markUnsold}
+                                                disabled={actionLoading}
+                                                className="btn"
+                                                style={{ padding: '0.65rem 0.6rem', background: '#ef4444', color: '#fff', fontSize: '0.85rem', fontWeight: 'bold', width: '100%' }}
+                                            >
+                                                ❌ UNSOLD
+                                            </button>
+                                            <button
+                                                onClick={cancelActiveAuction}
+                                                disabled={actionLoading}
+                                                className="btn btn-outline"
+                                                style={{ padding: '0.65rem 0.6rem', color: '#94a3b8', borderColor: '#94a3b8', fontSize: '0.82rem', width: '100%' }}
+                                            >
+                                                ⏹️ CANCEL
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Sidebar: Pending Players */}
+                                <div className="glass-panel" style={{ padding: '1.5rem', maxHeight: activePlayer ? '420px' : '75vh', overflowY: 'auto' }}>
+                                    <h3 style={{ color: 'var(--accent-gold)', fontSize: '1.1rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>PENDING PLAYERS ({pendingPlayers.length})</h3>
+                                    
+                                    {/* Search and Filters */}
+                                    <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search name or number..." 
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            style={{ width: '100%', padding: '0.6rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', fontSize: '0.9rem' }}
+                                        />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ROLE:</span>
+                                            <select 
+                                                value={roleFilter}
+                                                onChange={(e) => setRoleFilter(e.target.value)}
+                                                style={{ flex: 1, padding: '0.4rem', background: '#1a1a1a', border: '1px solid var(--border-color)', borderRadius: '4px', color: '#fff', fontSize: '0.8rem' }}
+                                            >
+                                                {roles.map(role => <option key={role} value={role}>{role}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                        {pendingPlayers.length === 0 ? (
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No players found.</p>
+                                        ) : (
+                                            pendingPlayers.map(p => (
+                                                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px' }}>
+                                                    <Link to={`/player/${p.players?.id || p.player_id}`} state={{ from: location.pathname + location.search }} style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, textDecoration: 'none', color: 'inherit' }}>
+                                                        {p.players.photo_url ? (
+                                                            <img src={getOptimizedImageUrl(p.players.photo_url, 100)} alt="P" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'contain', backgroundColor: '#0f172a' }} />
+                                                        ) : (
+                                                            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 'bold', color: '#fff' }}>
+                                                                {getPlayerInitials(p.players)}
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
+                                                                {p.player_number && <span style={{ color: 'var(--accent-gold)', marginRight: '0.5rem' }}>#{p.player_number}</span>}
+                                                                {p.players.first_name} {p.players.last_name}
+                                                            </div>
+                                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                                              {p.players.player_role}
+                                                            </div>
+                                                        </div>
+                                                    </Link>
+                                                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedAssignTeam('');
+                                                                setAssignPriceMode('free');
+                                                                setAssigningPendingPlayer(p);
+                                                            }}
+                                                            disabled={actionLoading || activePlayer}
+                                                            className="btn"
+                                                            style={{ padding: '0.3rem 0.5rem', fontSize: '0.7rem', background: 'rgba(168, 85, 247, 0.2)', color: '#c084fc', border: '1px solid rgba(168, 85, 247, 0.4)' }}
+                                                            title="Assign this player directly to a team (Free ₹0 or Base Price)"
+                                                        >
+                                                            ⚡ Assign
+                                                        </button>
+                                                        <button
+                                                            onClick={() => startAuctionForPlayer(p.id)}
+                                                            disabled={actionLoading || activePlayer}
+                                                            className="btn btn-outline"
+                                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem' }}
+                                                        >
+                                                            Start
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+
+                        {/* Full Width (12/12) Section: Direct Custom Bid + PLACE BID FOR: Teams Grid */}
+                        {activePlayer && (
+                            <div className="glass-panel" style={{ width: '100%', padding: '2rem 2.5rem' }}>
+                                {/* Custom Direct Bid Form */}
+                                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed var(--border-color)', borderRadius: '10px', padding: '1.2rem 1.5rem', marginBottom: '1.8rem', textAlign: 'left' }}>
+                                    <h4 style={{ color: 'var(--accent-gold)', marginTop: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        ⚡ DIRECT CUSTOM BID
+                                    </h4>
+                                    <form onSubmit={placeCustomBid} style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
+                                        <div style={{ flex: '1 1 200px' }}>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>Bid Amount (₹)</label>
+                                            <input 
+                                                type="number" 
+                                                placeholder="e.g. 50000" 
+                                                value={customBid}
+                                                onChange={e => setCustomBid(e.target.value)}
+                                                className="form-input" 
+                                                style={{ width: '100%', padding: '0.6rem' }}
+                                                min="0"
+                                                required
+                                            />
+                                        </div>
+                                        <div style={{ flex: '1 1 200px' }}>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>Select Bidding Team</label>
+                                            <select 
+                                                value={customBidTeam}
+                                                onChange={e => setCustomBidTeam(e.target.value)}
+                                                className="form-select" 
+                                                style={{ width: '100%', padding: '0.6rem' }}
+                                                required
+                                            >
+                                                <option value="">-- Choose Team --</option>
+                                                {displayTeams.map(team => (
+                                                    <option key={team.id} value={team.id}>{team.team_name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <button 
+                                            type="submit" 
+                                            disabled={actionLoading || !customBid || !customBidTeam}
+                                            className="btn btn-primary"
+                                            style={{ padding: '0.6rem 2rem', height: 'fit-content', background: 'var(--accent-gold)', color: '#000', fontWeight: 'bold' }}
+                                        >
+                                            Apply Custom Bid
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    <h4 style={{ color: 'var(--text-muted)', margin: 0, textAlign: 'left' }}>PLACE BID FOR:</h4>
+                                    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Click a team to place the next increment bid</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
+                                    {displayTeams.map(team => {
+                                         const maxPlayers = activeAuction?.max_players || 11;
+                                         const teamSquad = players.filter(p => p.team_id === team.id);
+                                         const teamSquadExcludingActive = players.filter(p => p.team_id === team.id && p.id !== activePlayer?.id);
+                                         const squadCount = teamSquad.length;
+                                         const isFull = squadCount >= maxPlayers;
+                                         const isCurrentBidder = activePlayer && team.id === activePlayer.current_bid_team_id;
+
+                                         const maxBudget = activeAuction?.max_budget || 0;
+                                         const spent = teamSquad.reduce((acc, p) => acc + (p.sold_price || 0), 0);
+                                         const remainingPurse = maxBudget - spent;
+
+                                         // Max Bid calculation with enforceReserveRule
+                                         const maxBidInfo = calculateTeamMaxBid(team, activeAuction, teamSquadExcludingActive, enforceReserveRule);
+                                         const basePrice = activeAuction?.base_price || 0;
+                                         const currentBid = activePlayer?.current_bid_price || 0;
+                                         const nextBid = !activePlayer?.current_bid_team_id ? basePrice : (currentBid + basePrice);
+                                         const cannotAffordNext = !isCurrentBidder && (nextBid > maxBidInfo.maxBid);
+
+                                         return (
+                                             <button
+                                                 key={team.id}
+                                                 onClick={() => placeBid(team.id)}
+                                                 disabled={actionLoading || (isFull && !isCurrentBidder) || cannotAffordNext}
+                                                 className="btn btn-outline"
+                                                 style={{
+                                                     display: 'flex',
+                                                     flexDirection: 'column',
+                                                     alignItems: 'center',
+                                                     gap: '0.35rem',
+                                                     padding: '0.8rem 0.6rem',
+                                                     position: 'relative',
+                                                     borderColor: isCurrentBidder ? 'var(--accent-gold)' : isFull ? '#ef4444' : cannotAffordNext ? 'rgba(239,68,68,0.5)' : 'var(--border-color)',
+                                                     background: isCurrentBidder ? 'rgba(255,215,0,0.15)' : isFull ? 'rgba(239,68,68,0.1)' : cannotAffordNext ? 'rgba(239,68,68,0.05)' : 'transparent',
+                                                     opacity: (isFull && !isCurrentBidder) || cannotAffordNext ? 0.65 : 1,
+                                                     cursor: (isFull && !isCurrentBidder) || cannotAffordNext ? 'not-allowed' : 'pointer'
+                                                 }}
+                                             >
+                                                 {team.logo_url ? (
+                                                     <img src={team.logo_url} alt="Logo" style={{ width: 44, height: 44, objectFit: 'contain' }} />
+                                                 ) : (
+                                                     <div style={{ width: 44, height: 44, borderRadius: '6px', background: 'var(--accent-gold)', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 'bold' }}>
+                                                         {getTeamInitials(team.team_name)}
+                                                     </div>
+                                                 )}
+                                                 <span style={{ fontSize: '0.88rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>{team.team_name}</span>
+                                                 <span style={{
+                                                     fontSize: '0.72rem',
+                                                     fontWeight: 'bold',
+                                                     padding: '0.12rem 0.45rem',
+                                                     borderRadius: '4px',
+                                                     background: isFull ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)',
+                                                     color: isFull ? '#ef4444' : 'var(--text-muted)'
+                                                 }}>
+                                                     {isFull ? `FULL (${squadCount}/${maxPlayers})` : `Squad: ${squadCount}/${maxPlayers}`}
+                                                 </span>
+                                                 {maxBudget > 0 ? (
+                                                     <>
+                                                         <span style={{
+                                                             fontSize: '0.72rem',
+                                                             fontWeight: 'bold',
+                                                             padding: '0.12rem 0.45rem',
+                                                             borderRadius: '4px',
+                                                             background: remainingPurse < 0 ? 'rgba(239,68,68,0.2)' : 'rgba(57,255,20,0.12)',
+                                                             color: remainingPurse < 0 ? '#ef4444' : 'var(--accent-green)',
+                                                             border: remainingPurse < 0 ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(57,255,20,0.3)'
+                                                         }}>
+                                                             Purse: ₹{remainingPurse.toLocaleString('en-IN')}
+                                                         </span>
+                                                         <span style={{
+                                                             fontSize: '0.72rem',
+                                                             fontWeight: 'bold',
+                                                             padding: '0.12rem 0.45rem',
+                                                             borderRadius: '4px',
+                                                             background: cannotAffordNext ? 'rgba(239,68,68,0.2)' : 'rgba(255,215,0,0.15)',
+                                                             color: cannotAffordNext ? '#ef4444' : 'var(--accent-gold)',
+                                                             border: cannotAffordNext ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(255,215,0,0.3)'
+                                                         }}>
+                                                             {cannotAffordNext ? `Cap: ₹${maxBidInfo.maxBid.toLocaleString('en-IN')}` : `Max Bid: ₹${maxBidInfo.maxBid.toLocaleString('en-IN')}`}
+                                                         </span>
+                                                     </>
+                                                 ) : (
+                                                     <span style={{
+                                                         fontSize: '0.72rem',
+                                                         fontWeight: 'bold',
+                                                         padding: '0.12rem 0.45rem',
+                                                         borderRadius: '4px',
+                                                         background: 'rgba(57,255,20,0.1)',
+                                                         color: 'var(--accent-green)',
+                                                         border: '1px solid rgba(57,255,20,0.3)'
+                                                     }}>
+                                                         Spent: ₹{spent.toLocaleString('en-IN')}
+                                                     </span>
+                                                 )}
+                                             </button>
+                                         );
+                                     })}
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '1.2rem', marginTop: '3rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                    <button
+                                        onClick={undoLastBid}
+                                        disabled={actionLoading || !activePlayer.current_bid_team_id}
+                                        className="btn btn-outline"
+                                        style={{ padding: '1rem 2rem', color: '#f59e0b', borderColor: '#f59e0b', fontSize: '1.1rem' }}
+                                    >
+                                        ↩️ UNDO BID
+                                    </button>
+                                    <button
+                                        onClick={finalizeSold}
+                                        disabled={actionLoading || !activePlayer.current_bid_team_id}
+                                        className="btn btn-primary"
+                                        style={{ padding: '1rem 3rem', background: '#10b981', borderColor: '#10b981', fontSize: '1.1rem' }}
+                                    >
+                                        🔨 SOLD
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedAssignTeam(activePlayer.current_bid_team_id || '');
+                                            setAssignPriceMode('free');
+                                            setShowDirectAssignModal(true);
+                                        }}
+                                        disabled={actionLoading || !activePlayer}
+                                        className="btn"
+                                        style={{ padding: '1rem 2rem', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', color: '#fff', fontSize: '1.1rem', fontWeight: 'bold', border: '1px solid #c084fc' }}
+                                        title="Assign this active player directly to a team (Free ₹0 or Base Price)"
+                                    >
+                                        ⚡ DIRECT ASSIGN
+                                    </button>
+                                    <button
+                                        onClick={markUnsold}
+                                        disabled={actionLoading}
+                                        className="btn"
+                                        style={{ padding: '1rem 2rem', background: '#ef4444', color: '#fff', fontSize: '1.1rem' }}
+                                    >
+                                        ❌ UNSOLD
+                                    </button>
+                                    <button
+                                        onClick={cancelActiveAuction}
+                                        disabled={actionLoading}
+                                        className="btn btn-outline"
+                                        style={{ padding: '1rem 2rem', color: '#94a3b8', borderColor: '#94a3b8', fontSize: '1.1rem' }}
+                                    >
+                                        ⏹️ CANCEL
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : activeTab === 'sold' ? (
                     /* Tab 2: Sold Players List */

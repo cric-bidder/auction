@@ -293,6 +293,8 @@ export const HorizontalTeamAutoSlider = ({
   teams = [],
   winningTeam = null,
   getTeamRemainingPurse = () => 0,
+  allAuctionPlayers = [],
+  maxPlayers = 11,
   theme = {},
   duration = '35s'
 }) => {
@@ -310,8 +312,8 @@ export const HorizontalTeamAutoSlider = ({
         overflow: 'hidden',
         background: 'rgba(0, 0, 0, 0.4)',
         border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '10px',
-        padding: '5px 0',
+        borderRadius: '8px',
+        padding: '2px 0',
         display: 'flex',
         maskImage: 'linear-gradient(to right, transparent, white 4%, white 96%, transparent)',
         WebkitMaskImage: 'linear-gradient(to right, transparent, white 4%, white 96%, transparent)',
@@ -321,7 +323,7 @@ export const HorizontalTeamAutoSlider = ({
       <div
         style={{
           display: 'flex',
-          gap: '10px',
+          gap: '8px',
           animation: `projectorTeamsMarquee ${duration} linear infinite`,
           whiteSpace: 'nowrap',
           width: 'max-content',
@@ -331,6 +333,10 @@ export const HorizontalTeamAutoSlider = ({
         {displayItems.map((t, idx) => {
           const isLeading = winningTeam?.id === t.id;
           const purse = getTeamRemainingPurse(t);
+          const squadCount = allAuctionPlayers.filter(
+            p => p.team_id === t.id && (p.auction_status === 'sold' || Number(p.sold_price) > 0)
+          ).length;
+          const isFull = maxPlayers > 0 && squadCount >= maxPlayers;
 
           return (
             <div
@@ -338,22 +344,22 @@ export const HorizontalTeamAutoSlider = ({
               style={{
                 background: isLeading ? 'rgba(57, 255, 20, 0.22)' : 'rgba(255, 255, 255, 0.05)',
                 border: isLeading ? '1.5px solid #39ff14' : '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '8px',
-                padding: '4px 10px',
+                borderRadius: '6px',
+                padding: '2px 8px',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '7px',
+                gap: '6px',
                 boxShadow: isLeading ? '0 0 15px rgba(57, 255, 20, 0.35)' : 'none',
                 flexShrink: 0
               }}
             >
               {t.logo_url ? (
-                <img src={t.logo_url} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} />
+                <img src={t.logo_url} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />
               ) : (
                 <div
                   style={{
-                    width: 18,
-                    height: 18,
+                    width: 16,
+                    height: 16,
                     borderRadius: '3px',
                     background: theme?.accentPrimary || '#ffd700',
                     color: '#000',
@@ -361,7 +367,7 @@ export const HorizontalTeamAutoSlider = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 900,
-                    fontSize: '0.6rem'
+                    fontSize: '0.58rem'
                   }}
                 >
                   {getTeamInitials(t.team_name)}
@@ -370,15 +376,30 @@ export const HorizontalTeamAutoSlider = ({
               <span
                 style={{
                   fontWeight: 800,
-                  fontSize: '0.78rem',
+                  fontSize: '0.75rem',
                   color: isLeading ? '#39ff14' : '#fff'
                 }}
               >
                 {t.team_name}
               </span>
+              {/* Squad count inline */}
               <span
                 style={{
-                  fontSize: '0.78rem',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  color: isFull ? '#ef4444' : '#94a3b8',
+                  background: isFull ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                  padding: '1px 5px',
+                  borderRadius: '4px',
+                  border: isFull ? '1px solid rgba(239,68,68,0.3)' : 'none'
+                }}
+                title={`Squad: ${squadCount}/${maxPlayers}`}
+              >
+                👥 {squadCount}/{maxPlayers}
+              </span>
+              <span
+                style={{
+                  fontSize: '0.75rem',
                   color: isLeading ? '#39ff14' : (theme?.accentPrimary || '#ffd700'),
                   fontWeight: 900
                 }}
@@ -390,10 +411,10 @@ export const HorizontalTeamAutoSlider = ({
                   style={{
                     background: '#39ff14',
                     color: '#000',
-                    padding: '1px 5px',
+                    padding: '1px 4px',
                     borderRadius: '3px',
                     fontWeight: 900,
-                    fontSize: '0.62rem'
+                    fontSize: '0.58rem'
                   }}
                 >
                   ACTIVE
@@ -421,6 +442,8 @@ export const GridTeamAutoSlider = ({
   teams = [],
   winningTeam = null,
   getTeamRemainingPurse = () => 0,
+  allAuctionPlayers = [],
+  maxPlayers = 11,
   theme = {},
   maxHeight = '100%'
 }) => {
@@ -479,6 +502,10 @@ export const GridTeamAutoSlider = ({
       {teams.map(t => {
         const isLeading = winningTeam?.id === t.id;
         const purse = getTeamRemainingPurse(t);
+        const squadCount = allAuctionPlayers.filter(
+          p => p.team_id === t.id && (p.auction_status === 'sold' || Number(p.sold_price) > 0)
+        ).length;
+        const isFull = maxPlayers > 0 && squadCount >= maxPlayers;
 
         return (
           <div
@@ -529,8 +556,22 @@ export const GridTeamAutoSlider = ({
                 >
                   {t.team_name}
                 </div>
-                <div style={{ fontSize: '0.7rem', color: isLeading ? '#39ff14' : '#94a3b8', fontWeight: 600 }}>
-                  {isLeading ? '⚡ LEADING BIDDER' : 'Participating Team'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                  <span style={{ fontSize: '0.7rem', color: isLeading ? '#39ff14' : '#94a3b8', fontWeight: 600 }}>
+                    {isLeading ? '⚡ LEADING BIDDER' : 'Participating Team'}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.65rem',
+                      fontWeight: 700,
+                      padding: '1px 5px',
+                      borderRadius: '4px',
+                      background: isFull ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+                      color: isFull ? '#ef4444' : '#94a3b8'
+                    }}
+                  >
+                    Squad: <strong style={{ color: isFull ? '#ef4444' : '#fff' }}>{squadCount}</strong>/{maxPlayers}
+                  </span>
                 </div>
               </div>
             </div>
